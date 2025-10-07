@@ -30,6 +30,19 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     } else {
+      // Temporarily set a mock user for testing
+      const mockUser = {
+        _id: 'mock-user-id',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+        totalPoints: 0,
+        highScores: {
+          snake: 0,
+          fallingFruit: 0,
+          breakBricks: 0,
+          clickCounter: 0
+        }
+      };
+      setUser(mockUser);
       setLoading(false);
     }
   }, []);
@@ -77,11 +90,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const requireAuth = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return false;
-    }
+    // Temporarily always return true for testing
     return true;
+    // if (!user) {
+    //   setShowLoginModal(true);
+    //   return false;
+    // }
+    // return true;
   };
 
   const value = {

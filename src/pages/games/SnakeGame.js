@@ -32,7 +32,56 @@ const SnakeGame = () => {
     fetchHighScore();
     
     const handleKeyPress = (e) => {
-      if (!gameStarted || gameState.gameOver) return;
+      if (gameState.gameOver) {
+        if (e.key === 'r' || e.key === 'Enter') {
+          resetGame();
+        }
+        return;
+      }
+
+      // Start game on first key press if not started
+      if (!gameStarted) {
+        let initialDirection = { x: 1, y: 0 }; // default to right
+        
+        switch (e.key) {
+          case 'ArrowUp':
+          case 'w':
+          case 'W':
+            e.preventDefault();
+            initialDirection = { x: 0, y: -1 };
+            break;
+          case 'ArrowDown':
+          case 's':
+          case 'S':
+            e.preventDefault();
+            initialDirection = { x: 0, y: 1 };
+            break;
+          case 'ArrowLeft':
+          case 'a':
+          case 'A':
+            e.preventDefault();
+            initialDirection = { x: -1, y: 0 };
+            break;
+          case 'ArrowRight':
+          case 'd':
+          case 'D':
+            e.preventDefault();
+            initialDirection = { x: 1, y: 0 };
+            break;
+          case ' ':
+          case 'Enter':
+            e.preventDefault();
+            break;
+          default:
+            return; // ignore other keys if game not started
+        }
+        
+        startGame(initialDirection);
+        return;
+      }
+
+      // Handle movement when game is running
+      if (!gameState.isPlaying || gameState.isPaused) return;
       
       switch (e.key) {
         case 'ArrowUp':
@@ -131,6 +180,7 @@ const SnakeGame = () => {
       setHighScore(response.data.highScore || 0);
     } catch (error) {
       console.error('Error fetching high score:', error);
+      // Set default high score if API fails
       setHighScore(0);
     }
   };
@@ -147,18 +197,19 @@ const SnakeGame = () => {
     return food;
   };
 
-  const startGame = () => {
+  const startGame = (initialDirection = { x: 1, y: 0 }) => {
     setGameStarted(true);
     setGameState({
       snake: [{ x: 10, y: 10 }],
       food: generateFood([{ x: 10, y: 10 }]),
-      direction: { x: 0, y: 0 },
+      direction: initialDirection,
       gameOver: false,
       score: 0,
       speed: INITIAL_SPEED,
       isPlaying: true,
       isPaused: false
     });
+    gameStartTime.current = Date.now();
   };
 
   const togglePause = () => {
@@ -289,10 +340,14 @@ const SnakeGame = () => {
                 {!gameStarted && (
                   <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
                     <div className="text-center text-white">
-                      <h2 className="text-3xl font-bold mb-4">Snake Game</h2>
-                      <p className="text-lg mb-6">Use arrow keys or WASD to control the snake</p>
+                      <h2 className="text-3xl font-bold mb-4">🐍 Snake Game</h2>
+                      <p className="text-lg mb-4">Press any arrow key or WASD to start!</p>
+                      <p className="text-sm text-gray-300 mb-6">
+                        Move the snake to eat coins and grow longer.<br/>
+                        Avoid hitting walls or yourself!
+                      </p>
                       <button
-                        onClick={startGame}
+                        onClick={() => startGame()}
                         className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
                       >
                         Start Game
