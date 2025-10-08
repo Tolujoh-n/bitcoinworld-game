@@ -7,7 +7,7 @@ import GameList from './pages/GameList';
 import SnakeGame from './pages/games/SnakeGame';
 import FallingFruitGame from './pages/games/FallingFruitGame';
 import BreakBricksGame from './pages/games/BreakBricksGame';
-import ClickCounterGame from './pages/games/ClickCounterGame';
+import CarRacingGame from './pages/games/CarRacingGame';
 import Stats from './pages/Stats';
 import Leaderboard from './pages/Leaderboard';
 import LoginModal from './components/LoginModal';
@@ -25,7 +25,7 @@ function App() {
             <Route path="/games/snake" element={<SnakeGame />} />
             <Route path="/games/falling-fruit" element={<FallingFruitGame />} />
             <Route path="/games/break-bricks" element={<BreakBricksGame />} />
-            <Route path="/games/click-counter" element={<ClickCounterGame />} />
+            <Route path="/games/car-racing" element={<CarRacingGame />} />
             <Route path="/stats" element={<Stats />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
           </Routes>

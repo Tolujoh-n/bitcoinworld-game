@@ -47,7 +47,7 @@ router.get('/game/:gameType', async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
     if (!validGameTypes.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
@@ -90,7 +90,7 @@ router.get('/game/:gameType/highscores', async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
     if (!validGameTypes.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
@@ -141,7 +141,7 @@ router.get('/game/:gameType/highscores', async (req, res) => {
 // Get game statistics (highest scores for each game)
 router.get('/game-stats', async (req, res) => {
   try {
-    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
     const gameStats = {};
 
     for (const gameType of gameTypes) {

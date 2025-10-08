@@ -1,36 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import Phaser from 'phaser';
 import api from '../../utils/api';
-
-const GAME_WIDTH = 600;
-const GAME_HEIGHT = 400;
-const PADDLE_WIDTH = 80;
-const PADDLE_HEIGHT = 15;
-const BALL_SIZE = 12;
-const BRICK_WIDTH = 60;
-const BRICK_HEIGHT = 20;
-const BRICK_ROWS = 5;
-const BRICK_COLS = 10;
-const INITIAL_BALL_SPEED = 3;
 
 const BreakBricksGame = () => {
   const { requireAuth } = useAuth();
   const navigate = useNavigate();
-  const gameAreaRef = useRef(null);
+  const gameRef = useRef(null);
+  const phaserGameRef = useRef(null);
   const [gameState, setGameState] = useState({
-    paddle: { x: GAME_WIDTH / 2 - PADDLE_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 10 },
-    ball: { x: GAME_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 30, dx: INITIAL_BALL_SPEED, dy: -INITIAL_BALL_SPEED },
-    bricks: [],
     score: 0,
+    highScore: 0,
     gameOver: false,
-    isPlaying: false,
-    isPaused: false,
-    gameWon: false
+    isPlaying: false
   });
-  const [highScore, setHighScore] = useState(0);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [keys, setKeys] = useState({ left: false, right: false });
 
   useEffect(() => {
     if (!requireAuth()) {
@@ -38,401 +22,452 @@ const BreakBricksGame = () => {
       return;
     }
 
-    const handleKeyDown = (e) => {
-      if (!gameStarted || gameState.gameOver || gameState.gameWon) return;
-      
-      switch (e.key) {
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          e.preventDefault();
-          setKeys(prev => ({ ...prev, left: true }));
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          e.preventDefault();
-          setKeys(prev => ({ ...prev, right: true }));
-          break;
-        case ' ':
-          e.preventDefault();
-          togglePause();
-          break;
-      }
-    };
+    fetchHighScore();
+    initializeGame();
 
-    const handleKeyUp = (e) => {
-      switch (e.key) {
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          setKeys(prev => ({ ...prev, left: false }));
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          setKeys(prev => ({ ...prev, right: false }));
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      if (phaserGameRef.current) {
+        phaserGameRef.current.destroy(true);
+      }
     };
-  }, [gameStarted, gameState.gameOver, gameState.gameWon, requireAuth, navigate]);
+  }, [requireAuth, navigate]);
 
-  useEffect(() => {
-    if (gameState.isPlaying && !gameState.gameOver && !gameState.isPaused && !gameState.gameWon) {
-      const gameLoop = setInterval(() => {
-        setGameState(prev => {
-          // Move paddle
-          let newPaddle = { ...prev.paddle };
-          const paddleSpeed = 5;
-          
-          if (keys.left && newPaddle.x > 0) {
-            newPaddle.x -= paddleSpeed;
+  const fetchHighScore = async () => {
+    try {
+      const response = await api.get('/games/breakBricks/highscore');
+      setGameState(prev => ({ ...prev, highScore: response.data.highScore || 0 }));
+    } catch (error) {
+      console.error('Error fetching high score:', error);
+    }
+  };
+
+  const submitScore = async (score) => {
+    try {
+      const points = score * 10;
+      await api.post('/scores/submit', {
+        gameType: 'breakBricks',
+        score: score,
+        points: points,
+        gameData: {
+          bricksBroken: score,
+          totalBricks: 50,
+          gameCompleted: score === 50
+        }
+      });
+    } catch (error) {
+      console.error('Error submitting score:', error);
+    }
+  };
+
+  const initializeGame = () => {
+    if (phaserGameRef.current) {
+      phaserGameRef.current.destroy(true);
+    }
+
+    class BreakBricksScene extends Phaser.Scene {
+      constructor() {
+        super({ key: 'BreakBricksScene' });
+      }
+
+      preload() {
+        // No assets needed
+      }
+
+      create() {
+        this.paddle = null;
+        this.ball = null;
+        this.bricks = [];
+        this.score = 0;
+        this.gameOver = false;
+        this.gameStarted = false;
+        this.gameWon = false;
+        this.ballSpeed = 3;
+        this.paddleSpeed = 5;
+
+        // Create paddle
+        this.paddle = this.add.rectangle(300, 350, 80, 15, 0xFFD700);
+        this.paddle.setStrokeStyle(2, 0xFFA500);
+
+        // Create ball
+        this.ball = this.add.circle(300, 320, 6, 0xFFFFFF);
+        this.ball.setStrokeStyle(2, 0xCCCCCC);
+        this.ball.setData('velocity', { x: 0, y: 0 });
+
+        // Create bricks
+        this.createBricks();
+
+        // Create UI
+        this.scoreText = this.add.text(10, 10, 'Bricks Broken: 0', { fontSize: '20px', fill: '#FFD700' });
+        this.instructionsText = this.add.text(300, 200, 'Press SPACE to Start\nUse A/D or Arrow Keys to Move Paddle', { 
+          fontSize: '18px', 
+          fill: '#FFD700',
+          align: 'center'
+        }).setOrigin(0.5);
+
+        // Input handling
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.adKeys = this.input.keyboard.addKeys('A,D');
+
+        // Game over overlay
+        this.gameOverOverlay = this.add.rectangle(300, 200, 600, 400, 0x000000, 0.8);
+        this.gameOverText = this.add.text(300, 150, 'Game Over!', { 
+          fontSize: '32px', 
+          fill: '#FF0000',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.finalScoreText = this.add.text(300, 200, 'Bricks Broken: 0', { 
+          fontSize: '20px', 
+          fill: '#FFFFFF',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.pointsText = this.add.text(300, 230, 'Points: 0', { 
+          fontSize: '18px', 
+          fill: '#FFD700',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.restartText = this.add.text(300, 280, 'Press SPACE to Restart', { 
+          fontSize: '18px', 
+          fill: '#FFD700',
+          align: 'center'
+        }).setOrigin(0.5);
+
+        // Game won overlay
+        this.gameWonText = this.add.text(300, 150, '🎉 Congratulations!', { 
+          fontSize: '28px', 
+          fill: '#00FF00',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.wonScoreText = this.add.text(300, 200, 'All Bricks Broken!', { 
+          fontSize: '20px', 
+          fill: '#FFFFFF',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.wonPointsText = this.add.text(300, 230, 'Points: 0', { 
+          fontSize: '18px', 
+          fill: '#FFD700',
+          align: 'center'
+        }).setOrigin(0.5);
+        this.wonRestartText = this.add.text(300, 280, 'Press SPACE to Play Again', { 
+          fontSize: '18px', 
+          fill: '#FFD700',
+          align: 'center'
+        }).setOrigin(0.5);
+
+        this.gameOverOverlay.setVisible(false);
+        this.gameOverText.setVisible(false);
+        this.finalScoreText.setVisible(false);
+        this.pointsText.setVisible(false);
+        this.restartText.setVisible(false);
+        this.gameWonText.setVisible(false);
+        this.wonScoreText.setVisible(false);
+        this.wonPointsText.setVisible(false);
+        this.wonRestartText.setVisible(false);
+      }
+
+      createBricks() {
+        const brickWidth = 60;
+        const brickHeight = 20;
+        const brickRows = 5;
+        const brickCols = 10;
+        const startX = (600 - (brickCols * brickWidth)) / 2;
+        const startY = 50;
+        const colors = [0xFF0000, 0xFF6600, 0xFFFF00, 0x00FF00, 0x0066FF];
+
+        for (let row = 0; row < brickRows; row++) {
+          for (let col = 0; col < brickCols; col++) {
+            const brick = this.add.rectangle(
+              startX + col * brickWidth + brickWidth/2,
+              startY + row * brickHeight + brickHeight/2,
+              brickWidth,
+              brickHeight,
+              colors[row]
+            );
+            brick.setStrokeStyle(2, 0x000000);
+            brick.setData('destroyed', false);
+            this.bricks.push(brick);
           }
-          if (keys.right && newPaddle.x < GAME_WIDTH - PADDLE_WIDTH) {
-            newPaddle.x += paddleSpeed;
+        }
+      }
+
+      startGame() {
+        this.gameStarted = true;
+        this.instructionsText.setVisible(false);
+        
+        // Set initial ball velocity
+        const ballVelocity = this.ball.getData('velocity');
+        ballVelocity.x = this.ballSpeed;
+        ballVelocity.y = -this.ballSpeed;
+      }
+
+      endGame() {
+        this.gameOver = true;
+        this.gameOverOverlay.setVisible(true);
+        this.gameOverText.setVisible(true);
+        this.finalScoreText.setText(`Bricks Broken: ${this.score}`);
+        this.finalScoreText.setVisible(true);
+        this.pointsText.setText(`Points: ${this.score * 10}`);
+        this.pointsText.setVisible(true);
+        this.restartText.setVisible(true);
+
+        // Submit score
+        submitScore(this.score);
+      }
+
+      winGame() {
+        this.gameWon = true;
+        this.gameOverOverlay.setVisible(true);
+        this.gameWonText.setVisible(true);
+        this.wonScoreText.setVisible(true);
+        this.wonPointsText.setText(`Points: ${this.score * 10}`);
+        this.wonPointsText.setVisible(true);
+        this.wonRestartText.setVisible(true);
+
+        // Submit score
+        submitScore(this.score);
+      }
+
+      restartGame() {
+        // Clear bricks
+        for (let brick of this.bricks) {
+          brick.destroy();
+        }
+        this.bricks = [];
+
+        // Reset game state
+        this.score = 0;
+        this.gameOver = false;
+        this.gameStarted = false;
+        this.gameWon = false;
+
+        // Reset paddle and ball positions
+        this.paddle.x = 300;
+        this.ball.x = 300;
+        this.ball.y = 320;
+        this.ball.setData('velocity', { x: 0, y: 0 });
+
+        // Create new bricks
+        this.createBricks();
+
+        // Update UI
+        this.scoreText.setText('Bricks Broken: 0');
+        this.instructionsText.setVisible(true);
+        this.gameOverOverlay.setVisible(false);
+        this.gameOverText.setVisible(false);
+        this.finalScoreText.setVisible(false);
+        this.pointsText.setVisible(false);
+        this.restartText.setVisible(false);
+        this.gameWonText.setVisible(false);
+        this.wonScoreText.setVisible(false);
+        this.wonPointsText.setVisible(false);
+        this.wonRestartText.setVisible(false);
+      }
+
+      update(time) {
+        if (this.gameOver || this.gameWon) {
+          if (this.spaceKey.isDown) {
+            this.restartGame();
+          }
+          return;
+        }
+
+        if (!this.gameStarted) {
+          if (this.spaceKey.isDown) {
+            this.startGame();
+          }
+          return;
+        }
+
+        // Move paddle
+        if (this.cursors.left.isDown || this.adKeys.A.isDown) {
+          this.paddle.x = Math.max(40, this.paddle.x - this.paddleSpeed);
+        }
+        if (this.cursors.right.isDown || this.adKeys.D.isDown) {
+          this.paddle.x = Math.min(560, this.paddle.x + this.paddleSpeed);
           }
 
           // Move ball
-          let newBall = {
-            ...prev.ball,
-            x: prev.ball.x + prev.ball.dx,
-            y: prev.ball.y + prev.ball.dy
-          };
+        const ballVelocity = this.ball.getData('velocity');
+        this.ball.x += ballVelocity.x;
+        this.ball.y += ballVelocity.y;
 
           // Ball collision with walls
-          if (newBall.x <= 0 || newBall.x >= GAME_WIDTH - BALL_SIZE) {
-            newBall.dx = -newBall.dx;
-            newBall.x = Math.max(0, Math.min(GAME_WIDTH - BALL_SIZE, newBall.x));
-          }
-          if (newBall.y <= 0) {
-            newBall.dy = -newBall.dy;
-            newBall.y = 0;
+        if (this.ball.x <= 6 || this.ball.x >= 594) {
+          ballVelocity.x = -ballVelocity.x;
+          this.ball.x = Math.max(6, Math.min(594, this.ball.x));
+        }
+        if (this.ball.y <= 6) {
+          ballVelocity.y = -ballVelocity.y;
+          this.ball.y = 6;
           }
 
           // Ball collision with paddle
-          if (newBall.y >= prev.paddle.y - BALL_SIZE &&
-              newBall.y <= prev.paddle.y + PADDLE_HEIGHT &&
-              newBall.x >= prev.paddle.x - BALL_SIZE &&
-              newBall.x <= prev.paddle.x + PADDLE_WIDTH) {
-            
-            const paddleCenter = prev.paddle.x + PADDLE_WIDTH / 2;
-            const ballCenter = newBall.x + BALL_SIZE / 2;
-            const hitPos = (ballCenter - paddleCenter) / (PADDLE_WIDTH / 2);
-            
-            newBall.dx = hitPos * 4;
-            newBall.dy = -Math.abs(newBall.dy);
-            newBall.y = prev.paddle.y - BALL_SIZE;
+        if (this.ball.y >= this.paddle.y - 15 &&
+            this.ball.y <= this.paddle.y + 15 &&
+            this.ball.x >= this.paddle.x - 40 &&
+            this.ball.x <= this.paddle.x + 40) {
+          
+          const paddleCenter = this.paddle.x;
+          const ballCenter = this.ball.x;
+          const hitPos = (ballCenter - paddleCenter) / 40;
+          
+          ballVelocity.x = hitPos * 4;
+          ballVelocity.y = -Math.abs(ballVelocity.y);
+          this.ball.y = this.paddle.y - 15;
           }
 
           // Ball collision with bricks
-          let newBricks = [...prev.bricks];
-          let newScore = prev.score;
-          let ballHitBrick = false;
+        for (let i = this.bricks.length - 1; i >= 0; i--) {
+          const brick = this.bricks[i];
+          if (!brick.getData('destroyed') &&
+              this.ball.x >= brick.x - 30 &&
+              this.ball.x <= brick.x + 30 &&
+              this.ball.y >= brick.y - 10 &&
+              this.ball.y <= brick.y + 10) {
+            
+            brick.setData('destroyed', true);
+            brick.setVisible(false);
+            this.score += 1;
+            this.scoreText.setText(`Bricks Broken: ${this.score}`);
+            ballVelocity.y = -ballVelocity.y;
 
-          newBricks.forEach((brick, index) => {
-            if (!brick.destroyed &&
-                newBall.x < brick.x + BRICK_WIDTH &&
-                newBall.x + BALL_SIZE > brick.x &&
-                newBall.y < brick.y + BRICK_HEIGHT &&
-                newBall.y + BALL_SIZE > brick.y) {
-              
-              newBricks[index] = { ...brick, destroyed: true };
-              newScore += 1;
-              ballHitBrick = true;
+            // Check if all bricks are destroyed
+            if (this.score === 50) {
+              this.winGame();
+              return;
             }
-          });
-
-          if (ballHitBrick) {
-            newBall.dy = -newBall.dy;
+          }
           }
 
           // Check if ball fell below paddle
-          const gameOver = newBall.y > GAME_HEIGHT;
-          
-          // Check if all bricks are destroyed
-          const gameWon = newBricks.every(brick => brick.destroyed);
-
-          return {
-            ...prev,
-            paddle: newPaddle,
-            ball: newBall,
-            bricks: newBricks,
-            score: newScore,
-            gameOver: gameOver,
-            gameWon: gameWon,
-            isPlaying: !gameOver && !gameWon
-          };
-        });
-      }, 16);
-
-      return () => clearInterval(gameLoop);
-    }
-  }, [gameState.isPlaying, gameState.gameOver, gameState.isPaused, gameState.gameWon, keys]);
-
-  const initializeBricks = () => {
-    const bricks = [];
-    const startX = (GAME_WIDTH - (BRICK_COLS * BRICK_WIDTH)) / 2;
-    const startY = 50;
-    
-    for (let row = 0; row < BRICK_ROWS; row++) {
-      for (let col = 0; col < BRICK_COLS; col++) {
-        bricks.push({
-          x: startX + col * BRICK_WIDTH,
-          y: startY + row * BRICK_HEIGHT,
-          color: ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400', 'bg-blue-400'][row],
-          destroyed: false
-        });
-      }
-    }
-    
-    setGameState(prev => ({ ...prev, bricks }));
-  };
-
-  const startGame = () => {
-    setGameStarted(true);
-    initializeBricks();
-    setGameState({
-      paddle: { x: GAME_WIDTH / 2 - PADDLE_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 10 },
-      ball: { x: GAME_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 30, dx: INITIAL_BALL_SPEED, dy: -INITIAL_BALL_SPEED },
-      bricks: [],
-      score: 0,
-      gameOver: false,
-      isPlaying: true,
-      isPaused: false,
-      gameWon: false
-    });
-  };
-
-  const togglePause = () => {
-    setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));
-  };
-
-  const resetGame = () => {
-    setGameStarted(false);
-    setGameState({
-      paddle: { x: GAME_WIDTH / 2 - PADDLE_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 10 },
-      ball: { x: GAME_WIDTH / 2, y: GAME_HEIGHT - PADDLE_HEIGHT - 30, dx: INITIAL_BALL_SPEED, dy: -INITIAL_BALL_SPEED },
-      bricks: [],
-      score: 0,
-      gameOver: false,
-      isPlaying: false,
-      isPaused: false,
-      gameWon: false
-    });
-    setKeys({ left: false, right: false });
-  };
-
-  const submitScore = async () => {
-    try {
-      const points = gameState.score * 10; // 10 points per brick
-      await api.post('/scores/submit', {
-        gameType: 'breakBricks',
-        score: gameState.score,
-        points: points,
-        gameData: {
-          bricksBroken: gameState.score,
-          totalBricks: BRICK_ROWS * BRICK_COLS,
-          gameCompleted: gameState.gameWon
+        if (this.ball.y > 400) {
+          this.endGame();
         }
-      });
-      
-      if (gameState.score > highScore) {
-        setHighScore(gameState.score);
-      }
-    } catch (error) {
-      console.error('Error submitting score:', error);
-      if (gameState.score > highScore) {
-        setHighScore(gameState.score);
       }
     }
-  };
 
-  useEffect(() => {
-    if (gameState.gameOver || gameState.gameWon) {
-      submitScore();
-    }
-  }, [gameState.gameOver, gameState.gameWon]);
+    const config = {
+      type: Phaser.AUTO,
+      width: 600,
+      height: 400,
+      parent: gameRef.current,
+      backgroundColor: '#1a1a1a',
+      scene: BreakBricksScene,
+      physics: {
+        default: 'arcade',
+        arcade: {
+          gravity: { y: 0, x: 0 }
+        }
+      }
+    };
+
+    phaserGameRef.current = new Phaser.Game(config);
+  };
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-900 via-yellow-900 to-yellow-800">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <button
             onClick={() => navigate('/games')}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+            className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white px-6 py-3 rounded-lg transition-all duration-300 shadow-lg border-2 border-yellow-400"
           >
             ← Back to Games
           </button>
-          <h1 className="text-3xl font-bold text-white">🧱 Break Bricks</h1>
+          <h1 className="text-4xl font-bold text-yellow-300 text-center flex items-center">
+            🧱 Break Bricks
+            <span className="ml-2 text-2xl">⚡</span>
+          </h1>
           <div></div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Game Area */}
           <div className="lg:col-span-2">
-            <div className="bg-black rounded-lg p-4 border-4 border-yellow-400">
-              <div
-                ref={gameAreaRef}
-                className="relative bg-gradient-to-b from-gray-800 to-gray-900 rounded mx-auto"
-                style={{
-                  width: GAME_WIDTH,
-                  height: GAME_HEIGHT
-                }}
-              >
-                {/* Paddle */}
-                <div
-                  className="absolute bg-yellow-400 border-2 border-yellow-300 rounded"
-                  style={{
-                    left: gameState.paddle.x,
-                    top: gameState.paddle.y,
-                    width: PADDLE_WIDTH,
-                    height: PADDLE_HEIGHT
-                  }}
-                />
-
-                {/* Ball */}
-                <div
-                  className="absolute bg-white border-2 border-gray-300 rounded-full"
-                  style={{
-                    left: gameState.ball.x,
-                    top: gameState.ball.y,
-                    width: BALL_SIZE,
-                    height: BALL_SIZE
-                  }}
-                />
-
-                {/* Bricks */}
-                {gameState.bricks.map((brick, index) => (
-                  !brick.destroyed && (
-                    <div
-                      key={index}
-                      className={`absolute border-2 border-gray-600 ${brick.color}`}
-                      style={{
-                        left: brick.x,
-                        top: brick.y,
-                        width: BRICK_WIDTH,
-                        height: BRICK_HEIGHT
-                      }}
-                    />
-                  )
-                ))}
-
-                {/* Game Over Overlay */}
-                {gameState.gameOver && (
-                  <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <h2 className="text-3xl font-bold mb-4">Game Over!</h2>
-                      <p className="text-xl mb-4">The ball fell below the paddle!</p>
-                      <p className="text-lg mb-4">Bricks Broken: {gameState.score}</p>
-                      <p className="text-lg mb-6">Points Earned: {gameState.score * 10}</p>
-                      <button
-                        onClick={resetGame}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
-                      >
-                        Play Again
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Game Won Overlay */}
-                {gameState.gameWon && (
-                  <div className="absolute inset-0 bg-green-900 bg-opacity-75 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <h2 className="text-3xl font-bold mb-4">🎉 Congratulations!</h2>
-                      <p className="text-xl mb-4">You broke all the bricks!</p>
-                      <p className="text-lg mb-4">Bricks Broken: {gameState.score}</p>
-                      <p className="text-lg mb-6">Points Earned: {gameState.score * 10}</p>
-                      <button
-                        onClick={resetGame}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
-                      >
-                        Play Again
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Start Screen */}
-                {!gameStarted && (
-                  <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <h2 className="text-3xl font-bold mb-4">Break Bricks</h2>
-                      <p className="text-lg mb-6">Use the paddle to bounce the ball and break all bricks!</p>
-                      <button
-                        onClick={startGame}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
-                      >
-                        Start Game
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pause Overlay */}
-                {gameState.isPaused && (
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <h2 className="text-3xl font-bold mb-4">Paused</h2>
-                      <p className="text-lg">Press SPACE to resume</p>
-                    </div>
-                  </div>
-                )}
+            <div className="bg-gradient-to-br from-yellow-900 to-yellow-800 rounded-lg p-6 border-4 border-yellow-400 shadow-2xl">
+              <div className="relative mx-auto" style={{ width: '600px', height: '400px' }}>
+                <div ref={gameRef} className="border-4 border-yellow-300 rounded-lg shadow-xl"></div>
               </div>
             </div>
           </div>
 
           {/* Game Info */}
           <div className="space-y-6">
-            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Game Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Bricks Broken:</span>
-                  <span className="text-yellow-400 font-bold">{gameState.score}</span>
+            <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">🧱 Game Stats</h3>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-100">Bricks Broken:</span>
+                  <span className="text-yellow-300 font-bold text-xl">{gameState.score}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">High Score:</span>
-                  <span className="text-yellow-400 font-bold">{highScore}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-100">High Score:</span>
+                  <span className="text-yellow-300 font-bold text-xl">{gameState.highScore}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Points Earned:</span>
-                  <span className="text-green-400 font-bold">{gameState.score * 10}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-100">Points Earned:</span>
+                  <span className="text-green-300 font-bold text-xl">{gameState.score * 10}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Remaining:</span>
-                  <span className="text-blue-400 font-bold">
-                    {BRICK_ROWS * BRICK_COLS - gameState.bricks.filter(b => b.destroyed).length}
-                  </span>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-100">Remaining:</span>
+                  <span className="text-blue-300 font-bold text-xl">{50 - gameState.score}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Controls</h3>
-              <div className="space-y-2 text-gray-300">
-                <div>← → Arrow Keys</div>
-                <div>A D Keys</div>
-                <div>SPACE - Pause/Resume</div>
+            <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">🎮 Controls</h3>
+              <div className="space-y-3 text-yellow-100">
+                <div className="flex items-center">
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">←</span>
+                  <span>Move Left</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">→</span>
+                  <span>Move Right</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">A</span>
+                  <span>Move Left</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">D</span>
+                  <span>Move Right</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">SP</span>
+                  <span>Start/Restart</span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-4">How to Play</h3>
-              <ul className="space-y-2 text-gray-300 text-sm">
-                <li>• Move the paddle left/right with arrow keys or A/D</li>
-                <li>• Bounce the ball to break all the bricks</li>
-                <li>• Don't let the ball fall below the paddle</li>
-                <li>• Each brick broken = 10 points</li>
-                <li>• Break all bricks to win!</li>
+            <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">📋 How to Play</h3>
+              <ul className="space-y-3 text-yellow-100 text-sm">
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Press SPACE to start the game</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Move the paddle left/right with arrow keys or A/D</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Bounce the ball to break all the bricks</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Don't let the ball fall below the paddle</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Each brick broken = 10 points</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-yellow-400 mr-2 font-bold">•</span>
+                  <span>Break all 50 bricks to win!</span>
+                </li>
               </ul>
             </div>
           </div>

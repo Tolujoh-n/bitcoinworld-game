@@ -51,17 +51,17 @@ router.get('/', (req, res) => {
       ]
     },
     {
-      id: 'clickCounter',
-      name: 'Click Counter',
-      description: 'Click as fast as you can within the time limit!',
+      id: 'carRacing',
+      name: 'Car Racing',
+      description: 'Control your car to avoid oncoming traffic and earn points!',
       pointsPerItem: 5,
-      icon: '🖱️',
+      icon: '🏎️',
       color: 'bg-purple-500',
       rules: [
-        'Click the button as many times as possible in 10 seconds',
-        'Each click gives you 5 points',
-        'After the timer ends, wait 30 seconds before playing again',
-        'Watch the bubble animation with each click'
+        'Use arrow keys or WASD to control your car',
+        'Avoid crashing into oncoming cars',
+        'Each car you avoid gives you 5 points',
+        'Speed increases over time - stay alert!'
       ]
     }
   ];
@@ -116,17 +116,17 @@ router.get('/:gameId', (req, res) => {
       ]
     },
     {
-      id: 'clickCounter',
-      name: 'Click Counter',
-      description: 'Click as fast as you can within the time limit!',
+      id: 'carRacing',
+      name: 'Car Racing',
+      description: 'Control your car to avoid oncoming traffic and earn points!',
       pointsPerItem: 5,
-      icon: '🖱️',
+      icon: '🏎️',
       color: 'bg-purple-500',
       rules: [
-        'Click the button as many times as possible in 10 seconds',
-        'Each click gives you 5 points',
-        'After the timer ends, wait 30 seconds before playing again',
-        'Watch the bubble animation with each click'
+        'Use arrow keys or WASD to control your car',
+        'Avoid crashing into oncoming cars',
+        'Each car you avoid gives you 5 points',
+        'Speed increases over time - stay alert!'
       ]
     }
   ];
@@ -143,7 +143,7 @@ router.get('/:gameId', (req, res) => {
 router.get('/:gameId/highscore', auth, async (req, res) => {
   try {
     const { gameId } = req.params;
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
     
     if (!validGameTypes.includes(gameId)) {
       return res.status(400).json({ message: 'Invalid game type' });

@@ -58,7 +58,7 @@ const Leaderboard = () => {
       snake: '🐍',
       fallingFruit: '🍎',
       breakBricks: '🧱',
-      clickCounter: '🖱️'
+      carRacing: '🏎️'
     };
     return icons[gameType] || '🎮';
   };
@@ -68,7 +68,7 @@ const Leaderboard = () => {
       snake: 'Snake Game',
       fallingFruit: 'Falling Fruit',
       breakBricks: 'Break Bricks',
-      clickCounter: 'Click Counter'
+      carRacing: 'Car Racing'
     };
     return names[gameType] || gameType;
   };
@@ -131,7 +131,7 @@ const Leaderboard = () => {
             
             {/* Tab Navigation */}
             <div className="flex space-x-2">
-              {['overall', 'snake', 'fallingFruit', 'breakBricks', 'clickCounter'].map((tab) => (
+              {['overall', 'snake', 'fallingFruit', 'breakBricks', 'carRacing'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => handleTabChange(tab)}

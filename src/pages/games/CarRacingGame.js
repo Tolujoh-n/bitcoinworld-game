@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import Phaser from 'phaser';
 import api from '../../utils/api';
 
-const FallingFruitGame = () => {
+const CarRacingGame = () => {
   const { requireAuth } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
@@ -34,7 +34,7 @@ const FallingFruitGame = () => {
 
   const fetchHighScore = async () => {
     try {
-      const response = await api.get('/games/fallingFruit/highscore');
+      const response = await api.get('/games/carRacing/highscore');
       setGameState(prev => ({ ...prev, highScore: response.data.highScore || 0 }));
     } catch (error) {
       console.error('Error fetching high score:', error);
@@ -43,13 +43,13 @@ const FallingFruitGame = () => {
 
   const submitScore = async (score) => {
     try {
-      const points = score * 10;
+      const points = score * 5;
       await api.post('/scores/submit', {
-        gameType: 'fallingFruit',
+        gameType: 'carRacing',
         score: score,
         points: points,
         gameData: {
-          fruitsCaught: score,
+          carsPassed: score,
           speed: 2 + (score * 0.1)
         }
       });
@@ -63,9 +63,9 @@ const FallingFruitGame = () => {
       phaserGameRef.current.destroy(true);
     }
 
-    class FallingFruitScene extends Phaser.Scene {
+    class CarRacingScene extends Phaser.Scene {
       constructor() {
-        super({ key: 'FallingFruitScene' });
+        super({ key: 'CarRacingScene' });
       }
 
       preload() {
@@ -73,22 +73,34 @@ const FallingFruitGame = () => {
       }
 
       create() {
-        this.baby = null;
-        this.fruits = [];
+        this.playerCar = null;
+        this.enemyCars = [];
         this.score = 0;
         this.gameOver = false;
         this.gameStarted = false;
         this.speed = 2;
-        this.lastFruitSpawn = 0;
-        this.babySize = 40;
+        this.lastEnemySpawn = 0;
+        this.roadWidth = 300;
+        this.laneWidth = 100;
+        this.carWidth = 40;
+        this.carHeight = 60;
 
-        // Create baby
-        this.baby = this.add.circle(200, 500, this.babySize/2, 0xFFB6C1);
-        this.baby.setStrokeStyle(2, 0xFF69B4);
-        this.baby.setData('type', 'baby');
+        // Create road
+        this.road = this.add.rectangle(200, 300, this.roadWidth, 600, 0x333333);
+        
+        // Create road lines
+        this.roadLines = [];
+        for (let i = 0; i < 20; i++) {
+          const line = this.add.rectangle(200, i * 30, 4, 20, 0xFFFF00);
+          this.roadLines.push(line);
+        }
+
+        // Create player car
+        this.playerCar = this.add.rectangle(200, 500, this.carWidth, this.carHeight, 0x0066CC);
+        this.playerCar.setStrokeStyle(2, 0x004499);
 
         // Create UI
-        this.scoreText = this.add.text(10, 10, 'Good Fruits: 0', { fontSize: '20px', fill: '#FFD700' });
+        this.scoreText = this.add.text(10, 10, 'Cars Passed: 0', { fontSize: '20px', fill: '#FFD700' });
         this.instructionsText = this.add.text(200, 300, 'Press SPACE to Start\nUse Arrow Keys to Move', { 
           fontSize: '20px', 
           fill: '#FFD700',
@@ -102,12 +114,12 @@ const FallingFruitGame = () => {
 
         // Game over overlay
         this.gameOverOverlay = this.add.rectangle(200, 300, 400, 600, 0x000000, 0.8);
-        this.gameOverText = this.add.text(200, 250, '💥 Bad Fruit!', { 
+        this.gameOverText = this.add.text(200, 250, '💥 Crash!', { 
           fontSize: '28px', 
           fill: '#FF0000',
           align: 'center'
         }).setOrigin(0.5);
-        this.finalScoreText = this.add.text(200, 300, 'Good Fruits Caught: 0', { 
+        this.finalScoreText = this.add.text(200, 300, 'Cars Passed: 0', { 
           fontSize: '18px', 
           fill: '#FFFFFF',
           align: 'center'
@@ -130,16 +142,15 @@ const FallingFruitGame = () => {
         this.restartText.setVisible(false);
       }
 
-      spawnFruit() {
-        const fruitType = Math.random() < 0.7 ? 'good' : 'bad';
-        const x = Math.random() * 350 + 25;
-        const color = fruitType === 'good' ? 0x00FF00 : 0xFF0000;
-        const strokeColor = fruitType === 'good' ? 0x00AA00 : 0xAA0000;
+      spawnEnemyCar() {
+        const lanes = [150, 200, 250];
+        const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+        const colors = [0xFF0000, 0xFF6600, 0xFF0066, 0x6600FF, 0x00FF66];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        const fruit = this.add.circle(x, -20, 15, color);
-        fruit.setStrokeStyle(2, strokeColor);
-        fruit.setData('type', fruitType);
-        this.fruits.push(fruit);
+        const enemyCar = this.add.rectangle(randomLane, -30, this.carWidth, this.carHeight, randomColor);
+        enemyCar.setStrokeStyle(2, 0x000000);
+        this.enemyCars.push(enemyCar);
       }
 
       startGame() {
@@ -151,9 +162,9 @@ const FallingFruitGame = () => {
         this.gameOver = true;
         this.gameOverOverlay.setVisible(true);
         this.gameOverText.setVisible(true);
-        this.finalScoreText.setText(`Good Fruits Caught: ${this.score}`);
+        this.finalScoreText.setText(`Cars Passed: ${this.score}`);
         this.finalScoreText.setVisible(true);
-        this.pointsText.setText(`Points: ${this.score * 10}`);
+        this.pointsText.setText(`Points: ${this.score * 5}`);
         this.pointsText.setVisible(true);
         this.restartText.setVisible(true);
 
@@ -162,25 +173,30 @@ const FallingFruitGame = () => {
       }
 
       restartGame() {
-        // Clear fruits
-        for (let fruit of this.fruits) {
-          fruit.destroy();
+        // Clear enemy cars
+        for (let car of this.enemyCars) {
+          car.destroy();
         }
-        this.fruits = [];
+        this.enemyCars = [];
 
         // Reset game state
         this.score = 0;
         this.gameOver = false;
         this.gameStarted = false;
         this.speed = 2;
-        this.lastFruitSpawn = 0;
+        this.lastEnemySpawn = 0;
 
-        // Reset baby position
-        this.baby.x = 200;
-        this.baby.y = 500;
+        // Reset player car position
+        this.playerCar.x = 200;
+        this.playerCar.y = 500;
+
+        // Reset road lines
+        for (let i = 0; i < this.roadLines.length; i++) {
+          this.roadLines[i].y = i * 30;
+        }
 
         // Update UI
-        this.scoreText.setText('Good Fruits: 0');
+        this.scoreText.setText('Cars Passed: 0');
         this.instructionsText.setVisible(true);
         this.gameOverOverlay.setVisible(false);
         this.gameOverText.setVisible(false);
@@ -204,53 +220,53 @@ const FallingFruitGame = () => {
           return;
         }
 
-        // Handle baby movement
-        const babySpeed = 5;
+        // Move road lines
+        for (let line of this.roadLines) {
+          line.y += this.speed;
+          if (line.y > 600) {
+            line.y = -20;
+          }
+        }
+
+        // Handle player input
+        const playerSpeed = 5;
         if (this.cursors.left.isDown || this.wasdKeys.A.isDown) {
-          this.baby.x = Math.max(20, this.baby.x - babySpeed);
+          this.playerCar.x = Math.max(150, this.playerCar.x - playerSpeed);
         }
         if (this.cursors.right.isDown || this.wasdKeys.D.isDown) {
-          this.baby.x = Math.min(380, this.baby.x + babySpeed);
+          this.playerCar.x = Math.min(250, this.playerCar.x + playerSpeed);
         }
         if (this.cursors.up.isDown || this.wasdKeys.W.isDown) {
-          this.baby.y = Math.max(20, this.baby.y - babySpeed);
+          this.playerCar.y = Math.max(50, this.playerCar.y - playerSpeed);
         }
         if (this.cursors.down.isDown || this.wasdKeys.S.isDown) {
-          this.baby.y = Math.min(580, this.baby.y + babySpeed);
+          this.playerCar.y = Math.min(550, this.playerCar.y + playerSpeed);
         }
 
-        // Spawn fruits
-        if (time - this.lastFruitSpawn > 1500) {
-          this.spawnFruit();
-          this.lastFruitSpawn = time;
+        // Spawn enemy cars
+        if (time - this.lastEnemySpawn > 2000) {
+          this.spawnEnemyCar();
+          this.lastEnemySpawn = time;
         }
 
-        // Move fruits and check collisions
-        for (let i = this.fruits.length - 1; i >= 0; i--) {
-          const fruit = this.fruits[i];
-          fruit.y += this.speed;
+        // Move enemy cars
+        for (let i = this.enemyCars.length - 1; i >= 0; i--) {
+          const car = this.enemyCars[i];
+          car.y += this.speed;
 
-          // Check collision with baby
-          const distance = Phaser.Math.Distance.Between(this.baby.x, this.baby.y, fruit.x, fruit.y);
-          if (distance < (this.babySize/2 + 15)) {
-            if (fruit.getData('type') === 'good') {
-              // Good fruit caught
-              this.score += 1;
-              this.scoreText.setText(`Good Fruits: ${this.score}`);
-              this.speed = Math.min(8, 2 + (this.score * 0.1));
-              fruit.destroy();
-              this.fruits.splice(i, 1);
-            } else {
-              // Bad fruit collision - game over
-              this.endGame();
-              return;
-            }
+          // Check collision with player
+          if (Phaser.Geom.Rectangle.Overlaps(this.playerCar.getBounds(), car.getBounds())) {
+            this.endGame();
+            return;
           }
 
-          // Remove fruits that fell off screen
-          if (fruit.y > 650) {
-            fruit.destroy();
-            this.fruits.splice(i, 1);
+          // Remove cars that passed
+          if (car.y > 650) {
+            this.score += 1;
+            this.scoreText.setText(`Cars Passed: ${this.score}`);
+            this.speed = Math.min(8, 2 + (this.score * 0.1));
+            car.destroy();
+            this.enemyCars.splice(i, 1);
           }
         }
       }
@@ -261,8 +277,8 @@ const FallingFruitGame = () => {
       width: 400,
       height: 600,
       parent: gameRef.current,
-      backgroundColor: '#87CEEB',
-      scene: FallingFruitScene,
+      backgroundColor: '#1a1a1a',
+      scene: CarRacingScene,
       physics: {
         default: 'arcade',
         arcade: {
@@ -285,8 +301,8 @@ const FallingFruitGame = () => {
             ← Back to Games
           </button>
           <h1 className="text-4xl font-bold text-yellow-300 text-center flex items-center">
-            🍎 Falling Fruit
-            <span className="ml-2 text-2xl">👶</span>
+            🏎️ Car Racing
+            <span className="ml-2 text-2xl">🏁</span>
           </h1>
           <div></div>
         </div>
@@ -304,10 +320,10 @@ const FallingFruitGame = () => {
           {/* Game Info */}
           <div className="space-y-6">
             <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
-              <h3 className="text-2xl font-bold text-yellow-200 mb-4">🍎 Game Stats</h3>
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">🏎️ Game Stats</h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-yellow-100">Good Fruits:</span>
+                  <span className="text-yellow-100">Cars Passed:</span>
                   <span className="text-yellow-300 font-bold text-xl">{gameState.score}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -316,7 +332,7 @@ const FallingFruitGame = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
-                  <span className="text-green-300 font-bold text-xl">{gameState.score * 10}</span>
+                  <span className="text-green-300 font-bold text-xl">{gameState.score * 5}</span>
                 </div>
               </div>
             </div>
@@ -356,23 +372,23 @@ const FallingFruitGame = () => {
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Move the baby with arrow keys or WASD</span>
+                  <span>Use arrow keys or WASD to control your car</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Catch green fruits (good) - they give points!</span>
+                  <span>Avoid crashing into oncoming cars</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Avoid red fruits (bad) - they end the game!</span>
+                  <span>Each car you avoid = 5 points</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Speed increases as you catch more fruits</span>
+                  <span>Speed increases over time</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Each good fruit = 10 points</span>
+                  <span>Stay alive as long as possible!</span>
                 </li>
               </ul>
             </div>
@@ -383,4 +399,4 @@ const FallingFruitGame = () => {
   );
 };
 
-export default FallingFruitGame;
+export default CarRacingGame;

@@ -46,7 +46,7 @@ const Stats = () => {
       snake: '🐍',
       fallingFruit: '🍎',
       breakBricks: '🧱',
-      clickCounter: '🖱️'
+      carRacing: '🏎️'
     };
     return icons[gameType] || '🎮';
   };
@@ -56,7 +56,7 @@ const Stats = () => {
       snake: 'Snake Game',
       fallingFruit: 'Falling Fruit',
       breakBricks: 'Break Bricks',
-      clickCounter: 'Click Counter'
+      carRacing: 'Car Racing'
     };
     return names[gameType] || gameType;
   };
@@ -103,7 +103,8 @@ const Stats = () => {
 
         {/* Game Statistics Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {Object.entries(user?.highScores || {}).map(([gameType, highScore]) => {
+          {['snake', 'fallingFruit', 'breakBricks', 'carRacing'].map((gameType) => {
+            const highScore = user?.highScores?.[gameType] || 0;
             const stats = gameStats[gameType] || {};
             return (
               <div key={gameType} className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6">

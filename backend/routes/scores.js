@@ -14,7 +14,7 @@ router.post('/submit', auth, async (req, res) => {
       return res.status(400).json({ message: 'Game type, score, and points are required' });
     }
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
     if (!validGameTypes.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
@@ -102,7 +102,7 @@ router.get('/stats', auth, async (req, res) => {
 
     // Get detailed statistics for each game
     const gameStats = {};
-    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'clickCounter'];
+    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
 
     for (const gameType of gameTypes) {
       const scores = await GameScore.find({
