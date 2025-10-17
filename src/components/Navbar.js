@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/bw-logo.png';
 
 const Navbar = () => {
   const { user, logout, setShowLoginModal } = useAuth();
@@ -14,12 +15,16 @@ const Navbar = () => {
     <nav className="bg-gradient-to-r from-yellow-600 to-yellow-500 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-white">🎮</span>
-              <span className="text-xl font-bold text-white">BitcoinWorld</span>
-            </Link>
-          </div>
+        <div className="flex items-center">
+  <Link to="/" className="flex items-center space-x-2">
+    <img
+      src={logo}
+      alt="Game Icon"
+      className="w-8 h-8"
+    />
+    <span className="text-xl font-bold text-white">BitcoinWorld</span>
+  </Link>
+</div>
 
           <div className="flex items-center space-x-4">
             <Link
@@ -80,9 +85,9 @@ const Navbar = () => {
             ) : (
               <button
                 onClick={() => setShowLoginModal(true)}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
               >
-                Login
+                Connect Wallet
               </button>
             )}
           </div>
