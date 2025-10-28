@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import Phaser from 'phaser';
-import api from '../../utils/api';
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import Phaser from "phaser";
+import api from "../../utils/api";
 
 const SnakeGame = () => {
   const { requireAuth } = useAuth();
@@ -13,12 +13,12 @@ const SnakeGame = () => {
     score: 0,
     highScore: 0,
     gameOver: false,
-    isPlaying: false
+    isPlaying: false,
   });
 
   useEffect(() => {
     if (!requireAuth()) {
-      navigate('/games');
+      navigate("/games");
       return;
     }
 
@@ -34,27 +34,30 @@ const SnakeGame = () => {
 
   const fetchHighScore = async () => {
     try {
-      const response = await api.get('/games/snake/highscore');
-      setGameState(prev => ({ ...prev, highScore: response.data.highScore || 0 }));
+      const response = await api.get("/games/snake/highscore");
+      setGameState((prev) => ({
+        ...prev,
+        highScore: response.data.highScore || 0,
+      }));
     } catch (error) {
-      console.error('Error fetching high score:', error);
+      console.error("Error fetching high score:", error);
     }
   };
 
   const submitScore = async (score) => {
     try {
       const points = score * 10;
-      await api.post('/scores/submit', {
-        gameType: 'snake',
+      await api.post("/scores/submit", {
+        gameType: "snake",
         score: score,
         points: points,
         gameData: {
-          speed: 150 - (score * 2),
-          duration: Date.now()
-        }
+          speed: 150 - score * 2,
+          duration: Date.now(),
+        },
       });
     } catch (error) {
-      console.error('Error submitting score:', error);
+      console.error("Error submitting score:", error);
     }
   };
 
@@ -65,7 +68,7 @@ const SnakeGame = () => {
 
     class SnakeScene extends Phaser.Scene {
       constructor() {
-        super({ key: 'SnakeScene' });
+        super({ key: "SnakeScene" });
       }
 
       preload() {
@@ -87,45 +90,70 @@ const SnakeGame = () => {
         // Create snake head (circular)
         const headX = 10 * this.cellSize;
         const headY = 10 * this.cellSize;
-        const head = this.add.circle(headX + this.cellSize/2, headY + this.cellSize/2, this.cellSize/2 - 1, 0x10b981);
+        const head = this.add.circle(
+          headX + this.cellSize / 2,
+          headY + this.cellSize / 2,
+          this.cellSize / 2 - 1,
+          0x10b981
+        );
         head.setStrokeStyle(2, 0x34d399);
-        head.setData('targetX', headX + this.cellSize/2);
-        head.setData('targetY', headY + this.cellSize/2);
+        head.setData("targetX", headX + this.cellSize / 2);
+        head.setData("targetY", headY + this.cellSize / 2);
         this.snake.push(head);
 
         // Create food
         this.createFood();
 
         // Create UI
-        this.scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#FFD700' });
-        this.instructionsText = this.add.text(250, 250, 'Press SPACE to Start\nUse Arrow Keys to Move', { 
-          fontSize: '24px', 
-          fill: '#FFD700',
-          align: 'center'
-        }).setOrigin(0.5);
+        this.scoreText = this.add.text(10, 10, "Score: 0", {
+          fontSize: "20px",
+          fill: "#FFD700",
+        });
+        this.instructionsText = this.add
+          .text(250, 250, "Press SPACE to Start\nUse Arrow Keys to Move", {
+            fontSize: "24px",
+            fill: "#FFD700",
+            align: "center",
+          })
+          .setOrigin(0.5);
 
         // Input handling
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.wasdKeys = this.input.keyboard.addKeys('W,S,A,D');
+        this.spaceKey = this.input.keyboard.addKey(
+          Phaser.Input.Keyboard.KeyCodes.SPACE
+        );
+        this.wasdKeys = this.input.keyboard.addKeys("W,S,A,D");
 
         // Game over overlay
-        this.gameOverOverlay = this.add.rectangle(250, 250, 500, 500, 0x000000, 0.8);
-        this.gameOverText = this.add.text(250, 200, 'Game Over!', { 
-          fontSize: '32px', 
-          fill: '#FF0000',
-          align: 'center'
-        }).setOrigin(0.5);
-        this.finalScoreText = this.add.text(250, 250, 'Final Score: 0', { 
-          fontSize: '20px', 
-          fill: '#FFFFFF',
-          align: 'center'
-        }).setOrigin(0.5);
-        this.restartText = this.add.text(250, 300, 'Press SPACE to Restart', { 
-          fontSize: '18px', 
-          fill: '#FFD700',
-          align: 'center'
-        }).setOrigin(0.5);
+        this.gameOverOverlay = this.add.rectangle(
+          250,
+          250,
+          500,
+          500,
+          0x000000,
+          0.8
+        );
+        this.gameOverText = this.add
+          .text(250, 200, "Game Over!", {
+            fontSize: "32px",
+            fill: "#FF0000",
+            align: "center",
+          })
+          .setOrigin(0.5);
+        this.finalScoreText = this.add
+          .text(250, 250, "Final Score: 0", {
+            fontSize: "20px",
+            fill: "#FFFFFF",
+            align: "center",
+          })
+          .setOrigin(0.5);
+        this.restartText = this.add
+          .text(250, 300, "Press SPACE to Restart", {
+            fontSize: "18px",
+            fill: "#FFD700",
+            align: "center",
+          })
+          .setOrigin(0.5);
 
         this.gameOverOverlay.setVisible(false);
         this.gameOverText.setVisible(false);
@@ -140,11 +168,11 @@ const SnakeGame = () => {
 
         let foodX, foodY;
         let validPosition = false;
-        
+
         while (!validPosition) {
           foodX = Math.floor(Math.random() * this.gridSize) * this.cellSize;
           foodY = Math.floor(Math.random() * this.gridSize) * this.cellSize;
-          
+
           validPosition = true;
           for (let segment of this.snake) {
             if (segment.x === foodX && segment.y === foodY) {
@@ -154,58 +182,80 @@ const SnakeGame = () => {
           }
         }
 
-        this.food = this.add.circle(foodX + this.cellSize/2, foodY + this.cellSize/2, this.cellSize/2 - 2, 0xFFD700);
-        this.food.setStrokeStyle(2, 0xFFA500);
+        this.food = this.add.circle(
+          foodX + this.cellSize / 2,
+          foodY + this.cellSize / 2,
+          this.cellSize / 2 - 2,
+          0xffd700
+        );
+        this.food.setStrokeStyle(2, 0xffa500);
       }
 
       moveSnake() {
         if (this.direction.x === 0 && this.direction.y === 0) return;
 
         const head = this.snake[0];
-        const newHeadX = head.getData('targetX') + (this.direction.x * this.cellSize);
-        const newHeadY = head.getData('targetY') + (this.direction.y * this.cellSize);
+        const newHeadX =
+          head.getData("targetX") + this.direction.x * this.cellSize;
+        const newHeadY =
+          head.getData("targetY") + this.direction.y * this.cellSize;
 
-        // Check wall collision (more precise boundaries)
-        if (newHeadX < this.cellSize/2 || newHeadX >= 500 - this.cellSize/2 || 
-            newHeadY < this.cellSize/2 || newHeadY >= 500 - this.cellSize/2) {
+        const radius = this.cellSize / 2 - 1;
+        if (
+          newHeadX - radius < 0 ||
+          newHeadX + radius > 500 ||
+          newHeadY - radius < 0 ||
+          newHeadY + radius > 500
+        ) {
           this.endGame();
           return;
         }
 
         // Check self collision
         for (let segment of this.snake) {
-          const segX = segment.getData('targetX');
-          const segY = segment.getData('targetY');
-          if (Math.abs(newHeadX - segX) < this.cellSize && Math.abs(newHeadY - segY) < this.cellSize) {
+          const segX = segment.getData("targetX");
+          const segY = segment.getData("targetY");
+          if (
+            Math.abs(newHeadX - segX) < this.cellSize &&
+            Math.abs(newHeadY - segY) < this.cellSize
+          ) {
             this.endGame();
             return;
           }
         }
 
         // Update head target position
-        head.setData('targetX', newHeadX);
-        head.setData('targetY', newHeadY);
+        head.setData("targetX", newHeadX);
+        head.setData("targetY", newHeadY);
 
         // Check food collision
-        if (Math.abs(newHeadX - this.food.x) < this.cellSize && Math.abs(newHeadY - this.food.y) < this.cellSize) {
+        if (
+          Math.abs(newHeadX - this.food.x) < this.cellSize &&
+          Math.abs(newHeadY - this.food.y) < this.cellSize
+        ) {
           this.score += 1;
           this.scoreText.setText(`Score: ${this.score}`);
-          this.speed = Math.max(50, 150 - (this.score * 2));
+          this.speed = Math.max(50, 150 - this.score * 2);
           this.createFood();
-          
+
           // Add new segment to snake (circular)
-          const newSegment = this.add.circle(newHeadX, newHeadY, this.cellSize/2 - 1, 0x10b981);
+          const newSegment = this.add.circle(
+            newHeadX,
+            newHeadY,
+            this.cellSize / 2 - 1,
+            0x10b981
+          );
           newSegment.setStrokeStyle(2, 0x34d399);
-          newSegment.setData('targetX', newHeadX);
-          newSegment.setData('targetY', newHeadY);
+          newSegment.setData("targetX", newHeadX);
+          newSegment.setData("targetY", newHeadY);
           this.snake.push(newSegment);
         } else {
           // Move each segment to follow the previous one
           for (let i = this.snake.length - 1; i > 0; i--) {
             const current = this.snake[i];
             const previous = this.snake[i - 1];
-            current.setData('targetX', previous.getData('targetX'));
-            current.setData('targetY', previous.getData('targetY'));
+            current.setData("targetX", previous.getData("targetX"));
+            current.setData("targetY", previous.getData("targetY"));
           }
         }
       }
@@ -246,17 +296,22 @@ const SnakeGame = () => {
         // Create new snake head (circular)
         const headX = 10 * this.cellSize;
         const headY = 10 * this.cellSize;
-        const head = this.add.circle(headX + this.cellSize/2, headY + this.cellSize/2, this.cellSize/2 - 1, 0x10b981);
+        const head = this.add.circle(
+          headX + this.cellSize / 2,
+          headY + this.cellSize / 2,
+          this.cellSize / 2 - 1,
+          0x10b981
+        );
         head.setStrokeStyle(2, 0x34d399);
-        head.setData('targetX', headX + this.cellSize/2);
-        head.setData('targetY', headY + this.cellSize/2);
+        head.setData("targetX", headX + this.cellSize / 2);
+        head.setData("targetY", headY + this.cellSize / 2);
         this.snake.push(head);
 
         // Create new food
         this.createFood();
 
         // Update UI
-        this.scoreText.setText('Score: 0');
+        this.scoreText.setText("Score: 0");
         this.instructionsText.setVisible(true);
         this.gameOverOverlay.setVisible(false);
         this.gameOverText.setVisible(false);
@@ -310,11 +365,11 @@ const SnakeGame = () => {
 
         // Smooth interpolation for snake movement
         for (let segment of this.snake) {
-          const targetX = segment.getData('targetX');
-          const targetY = segment.getData('targetY');
+          const targetX = segment.getData("targetX");
+          const targetY = segment.getData("targetY");
           const currentX = segment.x;
           const currentY = segment.y;
-          
+
           // Smooth movement towards target
           const lerpFactor = 0.3;
           segment.x = currentX + (targetX - currentX) * lerpFactor;
@@ -328,14 +383,14 @@ const SnakeGame = () => {
       width: 500,
       height: 500,
       parent: gameRef.current,
-      backgroundColor: '#1a1a1a',
+      backgroundColor: "#1a1a1a",
       scene: SnakeScene,
       physics: {
-        default: 'arcade',
+        default: "arcade",
         arcade: {
-          gravity: { y: 0, x: 0 }
-        }
-      }
+          gravity: { y: 0, x: 0 },
+        },
+      },
     };
 
     phaserGameRef.current = new Phaser.Game(config);
@@ -346,7 +401,7 @@ const SnakeGame = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <button
-            onClick={() => navigate('/games')}
+            onClick={() => navigate("/games")}
             className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white px-6 py-3 rounded-lg transition-all duration-300 shadow-lg border-2 border-yellow-400"
           >
             ← Back to Games
@@ -362,8 +417,14 @@ const SnakeGame = () => {
           {/* Game Area */}
           <div className="lg:col-span-2">
             <div className="bg-gradient-to-br from-yellow-900 to-yellow-800 rounded-lg p-6 border-4 border-yellow-400 shadow-2xl">
-              <div className="relative mx-auto" style={{ width: '500px', height: '500px' }}>
-                <div ref={gameRef} className="border-4 border-yellow-300 rounded-lg shadow-xl"></div>
+              <div
+                className="relative mx-auto"
+                style={{ width: "500px", height: "500px" }}
+              >
+                <div
+                  ref={gameRef}
+                  className="border-4 border-yellow-300 rounded-lg shadow-xl"
+                ></div>
               </div>
             </div>
           </div>
@@ -371,51 +432,73 @@ const SnakeGame = () => {
           {/* Game Info */}
           <div className="space-y-6">
             <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
-              <h3 className="text-2xl font-bold text-yellow-200 mb-4">💰 Game Stats</h3>
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">
+                💰 Game Stats
+              </h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Current Score:</span>
-                  <span className="text-yellow-300 font-bold text-xl">{gameState.score}</span>
+                  <span className="text-yellow-300 font-bold text-xl">
+                    {gameState.score}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">High Score:</span>
-                  <span className="text-yellow-300 font-bold text-xl">{gameState.highScore}</span>
+                  <span className="text-yellow-300 font-bold text-xl">
+                    {gameState.highScore}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
-                  <span className="text-green-300 font-bold text-xl">{gameState.score * 10}</span>
+                  <span className="text-green-300 font-bold text-xl">
+                    {gameState.score * 10}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
-              <h3 className="text-2xl font-bold text-yellow-200 mb-4">🎮 Controls</h3>
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">
+                🎮 Controls
+              </h3>
               <div className="space-y-3 text-yellow-100">
                 <div className="flex items-center">
-                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">↑</span>
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">
+                    ↑
+                  </span>
                   <span>Move Up</span>
                 </div>
                 <div className="flex items-center">
-                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">↓</span>
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">
+                    ↓
+                  </span>
                   <span>Move Down</span>
                 </div>
                 <div className="flex items-center">
-                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">←</span>
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">
+                    ←
+                  </span>
                   <span>Move Left</span>
                 </div>
                 <div className="flex items-center">
-                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">→</span>
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">
+                    →
+                  </span>
                   <span>Move Right</span>
                 </div>
                 <div className="flex items-center">
-                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">SP</span>
+                  <span className="w-8 h-8 bg-yellow-600 rounded text-center text-sm font-bold mr-3">
+                    SP
+                  </span>
                   <span>Start/Restart</span>
                 </div>
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-6 border-2 border-yellow-400 shadow-xl">
-              <h3 className="text-2xl font-bold text-yellow-200 mb-4">📋 How to Play</h3>
+              <h3 className="text-2xl font-bold text-yellow-200 mb-4">
+                📋 How to Play
+              </h3>
               <ul className="space-y-3 text-yellow-100 text-sm">
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>

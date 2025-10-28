@@ -31,7 +31,7 @@ const GameList = () => {
           ]
         },
         {
-          id: 'fallingFruit',
+          id: 'falling-fruit',
           name: 'Falling Fruit',
           description: 'Catch good fruits and avoid bad ones. Keep the baby safe!',
           pointsPerItem: 10,
@@ -45,7 +45,7 @@ const GameList = () => {
           ]
         },
         {
-          id: 'breakBricks',
+          id: 'break-bricks',
           name: 'Break Bricks',
           description: 'Use the paddle to bounce the ball and break all the bricks!',
           pointsPerItem: 10,
@@ -59,7 +59,7 @@ const GameList = () => {
           ]
         },
         {
-          id: 'carRacing',
+          id: 'car-racing',
           name: 'Car Racing',
           description: 'Avoid oncoming cars and survive as long as possible!',
           pointsPerItem: 5,
