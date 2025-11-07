@@ -94,9 +94,9 @@ const Home = () => {
               <p className="text-sm text-gray-300">Bounce and break</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl mb-2">🖱️</div>
-              <h4 className="font-semibold text-white">Click Counter</h4>
-              <p className="text-sm text-gray-300">Click fast!</p>
+              <div className="text-3xl mb-2">🏎️</div>
+              <h4 className="font-semibold text-white">Car Racing</h4>
+              <p className="text-sm text-gray-300">Avoid crashes!</p>
             </div>
           </div>
         </div>
