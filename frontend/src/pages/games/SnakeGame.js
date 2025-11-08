@@ -73,6 +73,8 @@ const SnakeGame = () => {
 
       preload() {
         // No assets needed
+        this.load.image("snakeHead", "/assets/snake/head.png");
+        this.load.image("snakeBody", "/assets/snake/body.png");
       }
 
       create() {
@@ -87,16 +89,17 @@ const SnakeGame = () => {
         this.gridSize = 20;
         this.cellSize = 500 / this.gridSize;
 
-        // Create snake head (circular)
+        // Create snake head (circular) // Create snake head (image)
         const headX = 10 * this.cellSize;
         const headY = 10 * this.cellSize;
-        const head = this.add.circle(
+        const head = this.add.image(
           headX + this.cellSize / 2,
           headY + this.cellSize / 2,
-          this.cellSize / 2 - 1,
-          0x10b981
+          "snakeHead"
         );
-        head.setStrokeStyle(2, 0x34d399);
+        head.setDisplaySize(this.cellSize, this.cellSize);
+        head.setDepth(10);
+
         head.setData("targetX", headX + this.cellSize / 2);
         head.setData("targetY", headY + this.cellSize / 2);
         this.snake.push(head);
@@ -227,11 +230,17 @@ const SnakeGame = () => {
         // Update head target position
         head.setData("targetX", newHeadX);
         head.setData("targetY", newHeadY);
+        head.x = newHeadX;
+        head.y = newHeadY;
 
         // Check food collision
         if (
-          Math.abs(newHeadX - this.food.x) < this.cellSize &&
-          Math.abs(newHeadY - this.food.y) < this.cellSize
+          Phaser.Math.Distance.Between(
+            head.x,
+            head.y,
+            this.food.x,
+            this.food.y
+          ) < this.cellSize
         ) {
           this.score += 1;
           this.scoreText.setText(`Score: ${this.score}`);
@@ -239,13 +248,9 @@ const SnakeGame = () => {
           this.createFood();
 
           // Add new segment to snake (circular)
-          const newSegment = this.add.circle(
-            newHeadX,
-            newHeadY,
-            this.cellSize / 2 - 1,
-            0x10b981
-          );
-          newSegment.setStrokeStyle(2, 0x34d399);
+          const newSegment = this.add.image(newHeadX, newHeadY, "snakeBody");
+          newSegment.setDisplaySize(this.cellSize, this.cellSize);
+          newSegment.setDepth(5);
           newSegment.setData("targetX", newHeadX);
           newSegment.setData("targetY", newHeadY);
           this.snake.push(newSegment);
@@ -293,16 +298,16 @@ const SnakeGame = () => {
         this.speed = 150;
         this.lastMoveTime = 0;
 
-        // Create new snake head (circular)
+        // Create new snake head (circular) // Create new snake head (image)
         const headX = 10 * this.cellSize;
         const headY = 10 * this.cellSize;
-        const head = this.add.circle(
+        const head = this.add.image(
           headX + this.cellSize / 2,
           headY + this.cellSize / 2,
-          this.cellSize / 2 - 1,
-          0x10b981
+          "snakeHead"
         );
-        head.setStrokeStyle(2, 0x34d399);
+        head.setDisplaySize(this.cellSize, this.cellSize);
+
         head.setData("targetX", headX + this.cellSize / 2);
         head.setData("targetY", headY + this.cellSize / 2);
         this.snake.push(head);
@@ -320,6 +325,12 @@ const SnakeGame = () => {
       }
 
       update(time) {
+        const head = this.snake[0];
+        if (this.direction.x === 1) head.setAngle(0);
+        else if (this.direction.x === -1) head.setAngle(180);
+        else if (this.direction.y === -1) head.setAngle(-90);
+        else if (this.direction.y === 1) head.setAngle(90);
+
         if (this.gameOver) {
           if (this.spaceKey.isDown) {
             this.restartGame();
@@ -374,6 +385,17 @@ const SnakeGame = () => {
           const lerpFactor = 0.3;
           segment.x = currentX + (targetX - currentX) * lerpFactor;
           segment.y = currentY + (targetY - currentY) * lerpFactor;
+        }
+
+        for (let i = 1; i < this.snake.length; i++) {
+          const prev = this.snake[i - 1];
+          const segment = this.snake[i];
+          segment.rotation = Phaser.Math.Angle.Between(
+            segment.x,
+            segment.y,
+            prev.x,
+            prev.y
+          );
         }
       }
     }
