@@ -8,6 +8,10 @@ const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const totalPoints = user?.totalPoints ?? 0;
+  const mintedPoints = user?.mintedPoints ?? 0;
+  const availablePoints = user?.availablePoints ?? Math.max(0, totalPoints - mintedPoints);
+
   const isActive = (path) => location.pathname === path;
 
   const closeMenu = () => setMobileMenuOpen(false);
@@ -64,7 +68,7 @@ const Navbar = () => {
               {user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}
             </div>
             <div className="text-xs text-yellow-100">
-              {user.totalPoints} points
+              {availablePoints.toLocaleString()} available pts
             </div>
           </div>
           <button
@@ -144,6 +148,9 @@ const Navbar = () => {
         <div className="md:hidden">
           <div className="space-y-1 px-4 pb-4 pt-2 bg-gradient-to-br from-yellow-700 to-yellow-600 shadow-inner">
             {renderNavLinks(true)}
+            <div className="text-sm text-yellow-100">
+              {user ? `${availablePoints.toLocaleString()} available pts` : null}
+            </div>
             {renderAuthActions(true)}
           </div>
         </div>

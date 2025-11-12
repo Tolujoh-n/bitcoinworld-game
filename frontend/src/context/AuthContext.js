@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import api, { SOCKET_BASE_URL } from '../utils/api';
 
 const GAME_TYPES = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
+const ORACLE_POINT_RATE = 100;
 
 const normalizeGameMap = (source = {}) => {
   const normalized = {};
@@ -28,6 +29,13 @@ const normalizeUser = (userData) => {
   const gamesPlayed = normalizeGameMap(userData.gamesPlayed);
   const highScores = normalizeGameMap(userData.highScores);
   const totalPoints = typeof userData.totalPoints === 'number' ? userData.totalPoints : 0;
+  const mintedPoints = typeof userData.mintedPoints === 'number' ? userData.mintedPoints : 0;
+  const availablePoints = typeof userData.availablePoints === 'number'
+    ? userData.availablePoints
+    : Math.max(0, totalPoints - mintedPoints);
+  const mintedOracles = typeof userData.mintedOracles === 'number'
+    ? userData.mintedOracles
+    : mintedPoints / ORACLE_POINT_RATE;
   const totalGames = Object.values(gamesPlayed).reduce(
     (sum, value) => sum + (typeof value === 'number' ? value : 0),
     0
@@ -38,6 +46,9 @@ const normalizeUser = (userData) => {
     gamesPlayed,
     highScores,
     totalPoints,
+    mintedPoints,
+    availablePoints,
+    mintedOracles,
     totalGames,
   };
 };

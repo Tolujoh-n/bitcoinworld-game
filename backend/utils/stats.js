@@ -15,6 +15,9 @@ const toObjectId = (id) => {
 const normalizeLeaderboardUser = (userDoc) => {
   const gamesPlayed = userDoc.gamesPlayed || {};
   const highScores = userDoc.highScores || {};
+  const mintedPoints = userDoc.mintedPoints || 0;
+  const totalPoints = userDoc.totalPoints || 0;
+  const availablePoints = Math.max(0, totalPoints - mintedPoints);
 
   const totalGames = Object.values(gamesPlayed).reduce(
     (sum, value) => sum + (typeof value === 'number' ? value : 0),
@@ -24,7 +27,10 @@ const normalizeLeaderboardUser = (userDoc) => {
   return {
     id: userDoc._id?.toString() || null,
     walletAddress: userDoc.walletAddress,
-    totalPoints: userDoc.totalPoints || 0,
+    totalPoints,
+    mintedPoints,
+    availablePoints,
+    mintedOracles: mintedPoints / (process.env.ORACLE_POINT_RATE ? Number(process.env.ORACLE_POINT_RATE) : 100),
     totalGames,
     gamesPlayed,
     highScores,
@@ -170,6 +176,10 @@ const buildUserSummary = (userDoc) => {
 
   const gamesPlayed = normalizeGameMap(userDoc.gamesPlayed || {});
   const highScores = normalizeGameMap(userDoc.highScores || {});
+  const mintedPoints = userDoc.mintedPoints || 0;
+  const totalPoints = userDoc.totalPoints || 0;
+  const pointRate = process.env.ORACLE_POINT_RATE ? Number(process.env.ORACLE_POINT_RATE) : 100;
+  const availablePoints = Math.max(0, totalPoints - mintedPoints);
   const totalGames = Object.values(gamesPlayed).reduce(
     (sum, value) => sum + (typeof value === 'number' ? value : 0),
     0
@@ -178,7 +188,10 @@ const buildUserSummary = (userDoc) => {
   return {
     id: userDoc._id?.toString(),
     walletAddress: userDoc.walletAddress,
-    totalPoints: userDoc.totalPoints || 0,
+    totalPoints,
+    mintedPoints,
+    availablePoints,
+    mintedOracles: mintedPoints / pointRate,
     gamesPlayed,
     highScores,
     totalGames,

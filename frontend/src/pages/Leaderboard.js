@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
+const ORACLE_POINT_RATE = 100;
+
 const Leaderboard = () => {
   const { user, socket } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
@@ -104,6 +106,11 @@ const Leaderboard = () => {
       socket.off('gameStats:update', handleGameStatsUpdate);
     };
   }, [socket, selectedGame]);
+
+  const totalPoints = user?.totalPoints ?? 0;
+  const mintedPoints = user?.mintedPoints ?? 0;
+  const availablePoints = user?.availablePoints ?? Math.max(0, totalPoints - mintedPoints);
+  const mintedOracleBalance = user?.mintedOracles ?? (mintedPoints / ORACLE_POINT_RATE);
 
   if (loading && leaderboard.length === 0) {
     return (
@@ -293,32 +300,28 @@ const Leaderboard = () => {
               <div className="bg-white bg-opacity-20 rounded-lg p-4">
                 <div className="text-center">
                   <div className="text-2xl mb-2">🏆</div>
-                  <div className="text-white font-bold text-lg">{user.totalPoints || 0}</div>
-                  <div className="text-yellow-100 text-sm">Total Points</div>
+                  <div className="text-white font-bold text-lg">{totalPoints.toLocaleString()}</div>
+                  <div className="text-yellow-100 text-sm">Total Points Earned</div>
+                </div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="text-2xl mb-2">💰</div>
+                  <div className="text-white font-bold text-lg">{availablePoints.toLocaleString()}</div>
+                  <div className="text-yellow-100 text-sm">Available Points</div>
+                </div>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="text-2xl mb-2">🪙</div>
+                  <div className="text-white font-bold text-lg">{mintedOracleBalance.toFixed(2)} ORC</div>
+                  <div className="text-yellow-100 text-sm">Oracle Balance</div>
                 </div>
               </div>
               <div className="bg-white bg-opacity-20 rounded-lg p-4">
                 <div className="text-center">
                   <div className="text-2xl mb-2">🎮</div>
                   <div className="text-white font-bold text-lg">{user.totalGames || 0}</div>
-                  <div className="text-yellow-100 text-sm">Games Played</div>
-                </div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-center">
-                  <div className="text-2xl mb-2">⭐</div>
-                  <div className="text-white font-bold text-lg">
-                    {Object.values(user.highScores || {}).filter(score => score > 0).length}
-                  </div>
-                  <div className="text-yellow-100 text-sm">High Scores Set</div>
-                </div>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-lg p-4">
-                <div className="text-center">
-                  <div className="text-2xl mb-2">📊</div>
-                  <div className="text-white font-bold text-lg">
-                    {Object.keys(user.highScores || {}).length}
-                  </div>
                   <div className="text-yellow-100 text-sm">Games Played</div>
                 </div>
               </div>

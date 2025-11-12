@@ -5,6 +5,27 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+const ORACLE_POINT_RATE = Number(process.env.ORACLE_POINT_RATE || 100);
+
+const formatUserResponse = (user) => {
+  const totalPoints = user.totalPoints || 0;
+  const mintedPoints = user.mintedPoints || 0;
+  const availablePoints = Math.max(0, totalPoints - mintedPoints);
+
+  return {
+    id: user._id,
+    walletAddress: user.walletAddress,
+    totalPoints,
+    mintedPoints,
+    availablePoints,
+    mintedOracles: mintedPoints / ORACLE_POINT_RATE,
+    highScores: user.highScores,
+    gamesPlayed: user.gamesPlayed,
+    createdAt: user.createdAt,
+    lastPlayed: user.lastPlayed
+  };
+};
+
 // Register/Login with wallet address
 router.post('/login', async (req, res) => {
   try {
@@ -43,13 +64,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      user: {
-        id: user._id,
-        walletAddress: user.walletAddress,
-        totalPoints: user.totalPoints,
-        highScores: user.highScores,
-        gamesPlayed: user.gamesPlayed
-      }
+      user: formatUserResponse(user)
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -65,15 +80,7 @@ router.get('/profile', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({
-      id: user._id,
-      walletAddress: user.walletAddress,
-      totalPoints: user.totalPoints,
-      highScores: user.highScores,
-      gamesPlayed: user.gamesPlayed,
-      createdAt: user.createdAt,
-      lastPlayed: user.lastPlayed
-    });
+    res.json(formatUserResponse(user));
   } catch (error) {
     console.error('Profile error:', error);
     res.status(500).json({ message: 'Server error' });

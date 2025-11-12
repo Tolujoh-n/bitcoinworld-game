@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext';
 
 const Home = () => {
   const { user } = useAuth();
+  const totalPoints = user?.totalPoints ?? 0;
+  const mintedPoints = user?.mintedPoints ?? 0;
+  const availablePoints = user?.availablePoints ?? Math.max(0, totalPoints - mintedPoints);
+  const oracleBalance = user?.mintedOracles ?? (mintedPoints / 100);
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -24,9 +28,14 @@ const Home = () => {
               <p className="text-yellow-100 mb-4">
                 Wallet: {user.walletAddress?.slice(0, 8)}...{user.walletAddress?.slice(-6)}
               </p>
-              <p className="text-2xl font-bold text-white">
-                {user.totalPoints} Total Points
-              </p>
+              <div className="space-y-1">
+                <p className="text-2xl font-bold text-white">
+                  {availablePoints.toLocaleString()} Available Points
+                </p>
+                <p className="text-sm text-yellow-100">
+                  Minted: {mintedPoints.toLocaleString()} pts • Oracle Balance: {oracleBalance.toFixed(2)} ORC
+                </p>
+              </div>
             </div>
           ) : (
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 max-w-md mx-auto mb-8">

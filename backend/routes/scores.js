@@ -13,6 +13,8 @@ const {
 
 const router = express.Router();
 
+const ORACLE_POINT_RATE = Number(process.env.ORACLE_POINT_RATE || 100);
+
 // Submit a game score
 router.post('/submit', auth, async (req, res) => {
   try {
@@ -160,6 +162,65 @@ router.get('/stats', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Stats error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mint points into Oracle tokens
+router.post('/mint', auth, async (req, res) => {
+  try {
+    const { points } = req.body;
+    const requestedPoints = Number(points);
+
+    if (!Number.isFinite(requestedPoints) || requestedPoints <= 0) {
+      return res.status(400).json({ message: 'Mint amount must be a positive number' });
+    }
+
+    const pointsToMint = Math.floor(requestedPoints);
+    if (pointsToMint <= 0) {
+      return res.status(400).json({ message: 'Mint amount is too small' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.mintedPoints = user.mintedPoints || 0;
+    user.totalPoints = user.totalPoints || 0;
+
+    const availablePoints = user.totalPoints - user.mintedPoints;
+    if (availablePoints <= 0) {
+      return res.status(400).json({ message: 'No points available to mint' });
+    }
+
+    if (pointsToMint > availablePoints) {
+      return res.status(400).json({ message: 'Mint amount exceeds available points' });
+    }
+
+    user.mintedPoints += pointsToMint;
+    await user.save();
+
+    const userSummary = buildUserSummary(user);
+
+    const io = req.app.get('io');
+    if (io) {
+      const userRooms = [req.user.userId, user.walletAddress].filter(Boolean);
+      for (const room of userRooms) {
+        io.to(room).emit('user:update', {
+          user: userSummary,
+        });
+      }
+    }
+
+    res.json({
+      message: 'Points minted successfully',
+      mintedPoints: pointsToMint,
+      oracleAmount: pointsToMint / ORACLE_POINT_RATE,
+      user: userSummary,
+    });
+  } catch (error) {
+    console.error('Mint error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

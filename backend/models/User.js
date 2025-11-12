@@ -12,6 +12,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  mintedPoints: {
+    type: Number,
+    default: 0
+  },
   gamesPlayed: {
     snake: { type: Number, default: 0 },
     fallingFruit: { type: Number, default: 0 },
@@ -39,5 +43,6 @@ const userSchema = new mongoose.Schema({
 // Index for faster queries
 userSchema.index({ walletAddress: 1 });
 userSchema.index({ totalPoints: -1 });
+userSchema.index({ mintedPoints: -1 });
 
 module.exports = mongoose.model('User', userSchema);
