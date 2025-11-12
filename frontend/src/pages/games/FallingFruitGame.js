@@ -4,13 +4,41 @@ import { useAuth } from "../../context/AuthContext";
 import Phaser from "phaser";
 import api from "../../utils/api";
 
+const BASE_WIDTH = 400;
+const BASE_HEIGHT = 600;
 const POINTS_PER_FRUIT = 10;
+
+const ratio = BASE_HEIGHT / BASE_WIDTH;
 
 const FallingFruitGame = () => {
   const { requireAuth, updateUser } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
   const phaserGameRef = useRef(null);
+  const sceneRef = useRef(null);
+  const [sceneReady, setSceneReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 730 : false
+  );
+  const computeCanvasDimensions = useCallback(() => {
+    if (typeof window === "undefined") {
+      return { width: BASE_WIDTH, height: BASE_HEIGHT };
+    }
+    const padding = 32;
+    const rawAvailable = Math.max(0, window.innerWidth - padding);
+    const viewportClamp = Math.max(160, window.innerWidth - 16);
+    let width = Math.min(BASE_WIDTH, Math.max(200, rawAvailable));
+    if (rawAvailable > 0) {
+      width = Math.min(width, rawAvailable);
+    }
+    width = Math.min(width, viewportClamp);
+    if (width <= 0) {
+      width = Math.min(BASE_WIDTH, viewportClamp);
+    }
+    const height = Math.round(width * ratio);
+    return { width, height };
+  }, []);
+  const [canvasSize, setCanvasSize] = useState(() => computeCanvasDimensions());
   const [gameState, setGameState] = useState({
     score: 0,
     highScore: 0,
@@ -27,6 +55,27 @@ const FallingFruitGame = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      const nextSize = computeCanvasDimensions();
+      setCanvasSize(nextSize);
+      setIsMobile(window.innerWidth <= 730);
+
+      if (phaserGameRef.current?.scale) {
+        phaserGameRef.current.scale.resize(nextSize.width, nextSize.height);
+        phaserGameRef.current.scale.refresh();
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [computeCanvasDimensions]);
+
+  useEffect(() => {
     if (!requireAuth()) {
       navigate("/games");
       return;
@@ -38,7 +87,10 @@ const FallingFruitGame = () => {
     return () => {
       if (phaserGameRef.current) {
         phaserGameRef.current.destroy(true);
+        phaserGameRef.current = null;
       }
+      sceneRef.current = null;
+      setSceneReady(false);
     };
   }, [requireAuth, navigate]);
 
@@ -78,6 +130,7 @@ const FallingFruitGame = () => {
     if (phaserGameRef.current) {
       phaserGameRef.current.destroy(true);
     }
+    setSceneReady(false);
 
     class FallingFruitScene extends Phaser.Scene {
       constructor() {
@@ -187,6 +240,25 @@ const FallingFruitGame = () => {
           gameOver: false,
           isPlaying: false,
         });
+
+        const { width, height } = computeCanvasDimensions();
+        this.scale.resize(width, height);
+        this.scale.refresh();
+
+        sceneRef.current = this;
+        setSceneReady(true);
+        this.events.once("destroy", () => {
+          if (sceneRef.current === this) {
+            sceneRef.current = null;
+            setSceneReady(false);
+          }
+        });
+        this.events.on("external-start", this.handleExternalStart, this);
+        this.events.on("external-control", this.handleExternalControl, this);
+        this.events.once("shutdown", () => {
+          this.events.off("external-start", this.handleExternalStart, this);
+          this.events.off("external-control", this.handleExternalControl, this);
+        });
       }
 
       spawnFruit() {
@@ -272,6 +344,39 @@ const FallingFruitGame = () => {
         });
       }
 
+      handleExternalStart() {
+        if (this.gameOver) {
+          this.restartGame();
+          this.startGame();
+        } else if (!this.gameStarted) {
+          this.startGame();
+        }
+      }
+
+      handleExternalControl(direction) {
+        if (!this.gameStarted || this.gameOver) {
+          return;
+        }
+
+        const babySpeed = 10;
+        switch (direction) {
+          case "left":
+            this.baby.x = Math.max(20, this.baby.x - babySpeed);
+            break;
+          case "right":
+            this.baby.x = Math.min(380, this.baby.x + babySpeed);
+            break;
+          case "up":
+            this.baby.y = Math.max(20, this.baby.y - babySpeed);
+            break;
+          case "down":
+            this.baby.y = Math.min(580, this.baby.y + babySpeed);
+            break;
+          default:
+            break;
+        }
+      }
+
       update(time) {
         if (this.gameOver) {
           if (this.spaceKey.isDown) {
@@ -350,8 +455,8 @@ const FallingFruitGame = () => {
 
     const config = {
       type: Phaser.AUTO,
-      width: 400,
-      height: 600,
+      width: BASE_WIDTH,
+      height: BASE_HEIGHT,
       parent: gameRef.current,
       backgroundColor: "#87CEEB",
       scene: FallingFruitScene,
@@ -361,13 +466,129 @@ const FallingFruitGame = () => {
           gravity: { y: 0, x: 0 },
         },
       },
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
     };
 
     phaserGameRef.current = new Phaser.Game(config);
   };
 
+  const handleStartPress = () => {
+    if (!sceneRef.current) return;
+    sceneRef.current.events.emit("external-start");
+  };
+
+  const handleControlPress = (direction) => {
+    if (!sceneRef.current) return;
+    sceneRef.current.events.emit("external-control", direction);
+  };
+
+  const ControlButton = ({ icon, label, onPress }) => {
+    const intervalRef = useRef(null);
+
+    useEffect(() => {
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+      };
+    }, []);
+
+    const stopRepeating = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    const handlePointerDown = (event) => {
+      event.preventDefault();
+      onPress();
+      stopRepeating();
+      intervalRef.current = setInterval(onPress, 90);
+    };
+
+    const handlePointerUp = () => {
+      stopRepeating();
+    };
+
+    return (
+      <button
+        type="button"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="w-16 h-16 rounded-full bg-yellow-500 text-white text-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-yellow-300 select-none"
+        aria-label={label}
+      >
+        {icon}
+      </button>
+    );
+  };
+
+  const renderMobileControls = () => {
+    if (!isMobile || !sceneReady) {
+      return null;
+    }
+
+    const isRunning = gameState.isPlaying && !gameState.gameOver;
+
+    return (
+      <div className="mt-4 flex flex-col items-center gap-4">
+        {!isRunning && (
+          <button
+            type="button"
+            onClick={handleStartPress}
+            className="w-full max-w-xs rounded-xl bg-yellow-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition-colors duration-200 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-300"
+            disabled={!sceneReady}
+          >
+            {gameState.gameOver ? "Restart Game" : "Start Game"}
+          </button>
+        )}
+
+        {isRunning && (
+          <div className="w-full max-w-xs space-y-3">
+            <div className="flex justify-center">
+              <ControlButton
+                icon="▲"
+                label="Move Up"
+                onPress={() => handleControlPress("up")}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <ControlButton
+                icon="◀"
+                label="Move Left"
+                onPress={() => handleControlPress("left")}
+              />
+              <ControlButton
+                icon="▼"
+                label="Move Down"
+                onPress={() => handleControlPress("down")}
+              />
+              <ControlButton
+                icon="▶"
+                label="Move Right"
+                onPress={() => handleControlPress("right")}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const gameContainerStyle = {
+    width: `${canvasSize.width}px`,
+    maxWidth: "100%",
+    height: `${canvasSize.height}px`,
+  };
+
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-900 via-yellow-900 to-yellow-800">
+    <div className="min-h-screen w-full overflow-x-hidden py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-900 via-yellow-900 to-yellow-800">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <button
@@ -389,14 +610,15 @@ const FallingFruitGame = () => {
             <div className="bg-gradient-to-br from-yellow-900 to-yellow-800 rounded-lg p-6 border-4 border-yellow-400 shadow-2xl">
               <div
                 className="relative mx-auto"
-                style={{ width: "400px", height: "600px" }}
+                style={gameContainerStyle}
               >
                 <div
                   ref={gameRef}
-                  className="border-4 border-yellow-300 rounded-lg shadow-xl"
+                  className="h-full w-full border-4 border-yellow-300 rounded-lg shadow-xl overflow-hidden bg-black"
                 ></div>
               </div>
             </div>
+            {renderMobileControls()}
           </div>
 
           {/* Game Info */}
