@@ -22,10 +22,12 @@ const Stats = () => {
     try {
       setLoading(true);
       const response = await api.get(`/scores/history?page=${page}&limit=10`);
-      setGameHistory(response.data.scores);
-      setTotalPages(response.data.pagination.totalPages);
+      setGameHistory(response.data.scores || []);
+      setTotalPages(response.data.pagination?.totalPages || 1);
+      setError('');
     } catch (error) {
       setError('Failed to load game history');
+      setGameHistory([]);
       console.error('Error fetching game history:', error);
     } finally {
       setLoading(false);
@@ -36,7 +38,7 @@ const Stats = () => {
     try {
       const response = await api.get('/scores/stats');
       if (response.data?.gameStats) {
-        setGameStats(response.data.gameStats);
+        setGameStats(response.data.gameStats || {});
       }
       if (response.data?.user) {
         setUserStats(response.data.user);
@@ -44,27 +46,76 @@ const Stats = () => {
       }
     } catch (error) {
       console.error('Error fetching game stats:', error);
+      setGameStats({});
     }
   }, [updateUser]);
 
+  // Check auth on mount if user is not available
   useEffect(() => {
-    const checkAuth = async () => {
-      const isAuthenticated = await requireAuth();
-      if (!isAuthenticated) return;
+    if (!user) {
+      requireAuth();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
-      fetchGameHistory(currentPage);
-      fetchGameStats();
+  // Initial data fetch - only when user is available
+  useEffect(() => {
+    // Don't fetch if user is not available
+    if (!user) return;
+
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [historyResponse, statsResponse] = await Promise.all([
+          api.get(`/scores/history?page=${currentPage}&limit=10`),
+          api.get('/scores/stats')
+        ]);
+        
+        if (!isMounted) return;
+        
+        setGameHistory(historyResponse.data.scores || []);
+        setTotalPages(historyResponse.data.pagination?.totalPages || 1);
+        setError('');
+        
+        if (statsResponse.data?.gameStats) {
+          setGameStats(statsResponse.data.gameStats || {});
+        }
+        if (statsResponse.data?.user) {
+          setUserStats(statsResponse.data.user);
+          updateUser(statsResponse.data.user);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setError('Failed to load game history');
+        setGameHistory([]);
+        setGameStats({});
+        console.error('Error fetching stats:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
 
-    checkAuth();
-  }, [requireAuth, currentPage, fetchGameHistory, fetchGameStats]);
+    loadData();
 
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, user?._id, currentPage, updateUser]); // Depend on user ID and current page
+
+  // Socket updates - separate effect to avoid re-creating listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !user) return;
 
     const handleRealtimeUpdate = () => {
-      fetchGameHistory(currentPage);
-      fetchGameStats();
+      // Only refresh if user is authenticated
+      if (user) {
+        fetchGameHistory(currentPage);
+        fetchGameStats();
+      }
     };
 
     socket.on('scores:refresh', handleRealtimeUpdate);
@@ -74,7 +125,8 @@ const Stats = () => {
       socket.off('scores:refresh', handleRealtimeUpdate);
       socket.off('user:update', handleRealtimeUpdate);
     };
-  }, [socket, currentPage, fetchGameHistory, fetchGameStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, user?.id, user?._id, currentPage]); // Only depend on socket, user ID, and current page
 
   const getGameIcon = (gameType) => {
     const icons = {
@@ -194,7 +246,8 @@ const Stats = () => {
     }
   };
 
-  if (loading && gameHistory.length === 0) {
+  // Show loading only on initial load
+  if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-white text-xl">Loading your stats...</div>
