@@ -2,6 +2,14 @@ const express = require('express');
 const GameScore = require('../models/GameScore');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const {
+  GAME_TYPES,
+  getUserGameStats,
+  getGlobalGameStats,
+  getOverallLeaderboard,
+  getGameLeaderboard,
+  buildUserSummary,
+} = require('../utils/stats');
 
 const router = express.Router();
 
@@ -14,42 +22,82 @@ router.post('/submit', auth, async (req, res) => {
       return res.status(400).json({ message: 'Game type, score, and points are required' });
     }
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
-    if (!validGameTypes.includes(gameType)) {
+    if (!GAME_TYPES.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
 
-    // Create game score record
     const gameScore = new GameScore({
       user: req.user.userId,
       walletAddress: req.user.walletAddress,
       gameType,
       score,
       points,
-      gameData: gameData || {}
+      gameData: gameData || {},
     });
 
     await gameScore.save();
 
-    // Update user's total points and game statistics
     const user = await User.findById(req.user.userId);
+    let userSummary = null;
+
     if (user) {
-      user.totalPoints += points;
-      user.gamesPlayed[gameType] += 1;
-      
-      // Update high score if this is higher
-      if (score > user.highScores[gameType]) {
+      user.totalPoints = (user.totalPoints || 0) + points;
+      user.gamesPlayed = user.gamesPlayed || {};
+      user.highScores = user.highScores || {};
+
+      user.gamesPlayed[gameType] = (user.gamesPlayed[gameType] || 0) + 1;
+
+      if ((user.highScores[gameType] || 0) < score) {
         user.highScores[gameType] = score;
       }
-      
+
       user.lastPlayed = new Date();
       await user.save();
+      userSummary = buildUserSummary(user);
+    }
+
+    const [userGameStats, globalGameStats, overallLeaderboard, gameLeaderboard] = await Promise.all([
+      getUserGameStats(req.user.userId),
+      getGlobalGameStats(),
+      getOverallLeaderboard(10),
+      getGameLeaderboard(gameType, 10),
+    ]);
+
+    const scorePayload = gameScore.toObject();
+    delete scorePayload.__v;
+
+    const io = req.app.get('io');
+    if (io) {
+      if (userSummary) {
+        const userRooms = [req.user.userId, userSummary.walletAddress].filter(Boolean);
+        for (const room of userRooms) {
+          io.to(room).emit('user:update', {
+            user: userSummary,
+            gameStats: userGameStats,
+          });
+          io.to(room).emit('scores:refresh', { gameType });
+        }
+      }
+
+      io.emit('scores:new', { gameType, score: scorePayload });
+      io.emit('leaderboard:update', { type: 'overall', leaderboard: overallLeaderboard });
+      io.emit('leaderboard:update', { type: gameType, leaderboard: gameLeaderboard });
+      io.emit('gameStats:update', globalGameStats);
     }
 
     res.json({
       message: 'Score submitted successfully',
-      score: gameScore,
-      newTotalPoints: user.totalPoints
+      score: scorePayload,
+      user: userSummary,
+      userGameStats,
+      globalGameStats,
+      leaderboards: {
+        overall: overallLeaderboard,
+        game: {
+          gameType,
+          entries: gameLeaderboard,
+        },
+      },
     });
   } catch (error) {
     console.error('Score submission error:', error);
@@ -100,32 +148,15 @@ router.get('/stats', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Get detailed statistics for each game
-    const gameStats = {};
-    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
-
-    for (const gameType of gameTypes) {
-      const scores = await GameScore.find({
-        user: req.user.userId,
-        gameType
-      }).sort({ score: -1 });
-
-      gameStats[gameType] = {
-        totalGames: scores.length,
-        highScore: scores.length > 0 ? scores[0].score : 0,
-        totalPoints: scores.reduce((sum, score) => sum + score.points, 0),
-        averageScore: scores.length > 0 ? scores.reduce((sum, score) => sum + score.score, 0) / scores.length : 0
-      };
-    }
+    const [gameStats, globalGameStats] = await Promise.all([
+      getUserGameStats(req.user.userId),
+      getGlobalGameStats(),
+    ]);
 
     res.json({
-      user: {
-        walletAddress: user.walletAddress,
-        totalPoints: user.totalPoints,
-        highScores: user.highScores,
-        gamesPlayed: user.gamesPlayed
-      },
-      gameStats
+      user: buildUserSummary(user),
+      gameStats,
+      globalGameStats,
     });
   } catch (error) {
     console.error('Stats error:', error);

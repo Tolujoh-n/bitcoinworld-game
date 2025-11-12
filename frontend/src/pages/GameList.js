@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 
 const GameList = () => {
   const { user, requireAuth } = useAuth();
@@ -8,80 +9,30 @@ const GameList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchGames();
-  }, []);
+  const routeMap = {
+    snake: 'snake',
+    fallingFruit: 'falling-fruit',
+    breakBricks: 'break-bricks',
+    carRacing: 'car-racing',
+  };
 
-  const fetchGames = async () => {
+  const fetchGames = useCallback(async () => {
     try {
-      // Static games data for now
-      const gamesData = [
-        {
-          id: 'snake',
-          name: 'Snake Game',
-          description: 'Control the snake to eat coins and grow longer. Avoid hitting the walls!',
-          pointsPerItem: 10,
-          icon: '🐍',
-          color: 'bg-green-500',
-          rules: [
-            'Use arrow keys or WASD to control the snake',
-            'Eat coins to grow longer and earn points',
-            'Avoid hitting the walls or yourself',
-            'Speed increases as you progress'
-          ]
-        },
-        {
-          id: 'falling-fruit',
-          name: 'Falling Fruit',
-          description: 'Catch good fruits and avoid bad ones. Keep the baby safe!',
-          pointsPerItem: 10,
-          icon: '🍎',
-          color: 'bg-red-500',
-          rules: [
-            'Use arrow keys or WASD to move the baby',
-            'Catch green fruits (good) to grow bigger',
-            'Avoid red fruits (bad) - they end the game',
-            'Speed increases over time'
-          ]
-        },
-        {
-          id: 'break-bricks',
-          name: 'Break Bricks',
-          description: 'Use the paddle to bounce the ball and break all the bricks!',
-          pointsPerItem: 10,
-          icon: '🧱',
-          color: 'bg-blue-500',
-          rules: [
-            'Use left/right arrow keys or A/D to move the paddle',
-            'Bounce the ball to break bricks',
-            'Don\'t let the ball fall below the paddle',
-            'Each brick broken gives you points'
-          ]
-        },
-        {
-          id: 'car-racing',
-          name: 'Car Racing',
-          description: 'Avoid oncoming cars and survive as long as possible!',
-          pointsPerItem: 5,
-          icon: '🏎️',
-          color: 'bg-red-500',
-          rules: [
-            'Use arrow keys or WASD to control your car',
-            'Avoid crashing into oncoming cars',
-            'Each car you avoid gives you 5 points',
-            'Speed increases over time',
-            'Stay alive as long as possible!'
-          ]
-        }
-      ];
-      setGames(gamesData);
+      setLoading(true);
+      const response = await api.get('/games');
+      const fetchedGames = response.data?.games || [];
+      setGames(fetchedGames);
     } catch (error) {
       setError('Failed to load games');
       console.error('Error fetching games:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchGames();
+  }, [fetchGames]);
 
   const handleGameClick = (gameId) => {
     if (!requireAuth()) {
@@ -120,7 +71,9 @@ const GameList = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {games.map((game, index) => (
+          {games.map((game, index) => {
+            const routeId = routeMap[game.id] || game.id;
+            return (
             <div
               key={game.id}
               className={`transform transition-all duration-300 hover:scale-105 ${
@@ -128,7 +81,7 @@ const GameList = () => {
               }`}
             >
               <Link
-                to={`/games/${game.id}`}
+                to={`/games/${routeId}`}
                 onClick={() => handleGameClick(game.id)}
                 className="block"
               >
@@ -171,7 +124,8 @@ const GameList = () => {
                 </div>
               </Link>
             </div>
-          ))}
+          );
+          })}
         </div>
 
         {/* Stats Section */}
@@ -182,10 +136,11 @@ const GameList = () => {
               <span className="ml-2 text-2xl">🏆</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {Object.entries(user.highScores || {}).map(([gameType, highScore]) => {
+              {['snake', 'fallingFruit', 'breakBricks', 'carRacing'].map((gameType) => {
                 const game = games.find(g => g.id === gameType);
-                const gamesPlayed = user.gamesPlayed?.[gameType] || 0;
-                
+                const highScore = user.highScores?.[gameType] ?? 0;
+                const gamesPlayed = user.gamesPlayed?.[gameType] ?? 0;
+
                 return (
                   <div key={gameType} className="text-center bg-gradient-to-br from-yellow-700 to-yellow-800 rounded-lg p-4 border-2 border-yellow-500 shadow-lg">
                     <div className="text-3xl mb-2">

@@ -16,12 +16,14 @@ const userSchema = new mongoose.Schema({
     snake: { type: Number, default: 0 },
     fallingFruit: { type: Number, default: 0 },
     breakBricks: { type: Number, default: 0 },
+    carRacing: { type: Number, default: 0 },
     clickCounter: { type: Number, default: 0 }
   },
   highScores: {
     snake: { type: Number, default: 0 },
     fallingFruit: { type: Number, default: 0 },
     breakBricks: { type: Number, default: 0 },
+    carRacing: { type: Number, default: 0 },
     clickCounter: { type: Number, default: 0 }
   },
   createdAt: {

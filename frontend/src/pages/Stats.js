@@ -1,27 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 const Stats = () => {
-  const { user, requireAuth } = useAuth();
+  const { user, socket, requireAuth, updateUser } = useAuth();
   const [gameHistory, setGameHistory] = useState([]);
   const [gameStats, setGameStats] = useState({});
+  const [userStats, setUserStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (!requireAuth()) return;
-    
-    fetchGameHistory();
-    fetchGameStats();
-  }, [currentPage]);
-
-  const fetchGameHistory = async () => {
+  const fetchGameHistory = useCallback(async (page = currentPage) => {
     try {
       setLoading(true);
-      const response = await api.get(`/scores/history?page=${currentPage}&limit=10`);
+      const response = await api.get(`/scores/history?page=${page}&limit=10`);
       setGameHistory(response.data.scores);
       setTotalPages(response.data.pagination.totalPages);
     } catch (error) {
@@ -30,16 +24,46 @@ const Stats = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  const fetchGameStats = async () => {
+  const fetchGameStats = useCallback(async () => {
     try {
       const response = await api.get('/scores/stats');
-      setGameStats(response.data.gameStats);
+      if (response.data?.gameStats) {
+        setGameStats(response.data.gameStats);
+      }
+      if (response.data?.user) {
+        setUserStats(response.data.user);
+        updateUser(response.data.user);
+      }
     } catch (error) {
       console.error('Error fetching game stats:', error);
     }
-  };
+  }, [updateUser]);
+
+  useEffect(() => {
+    if (!requireAuth()) return;
+
+    fetchGameHistory(currentPage);
+    fetchGameStats();
+  }, [requireAuth, currentPage, fetchGameHistory, fetchGameStats]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRealtimeUpdate = () => {
+      fetchGameHistory(currentPage);
+      fetchGameStats();
+    };
+
+    socket.on('scores:refresh', handleRealtimeUpdate);
+    socket.on('user:update', handleRealtimeUpdate);
+
+    return () => {
+      socket.off('scores:refresh', handleRealtimeUpdate);
+      socket.off('user:update', handleRealtimeUpdate);
+    };
+  }, [socket, currentPage, fetchGameHistory, fetchGameStats]);
 
   const getGameIcon = (gameType) => {
     const icons = {
@@ -71,6 +95,10 @@ const Stats = () => {
     });
   };
 
+  const resolvedHighScores = userStats?.highScores || user?.highScores || {};
+  const resolvedGamesPlayed = userStats?.gamesPlayed || user?.gamesPlayed || {};
+  const totalPointsValue = userStats?.totalPoints ?? user?.totalPoints ?? 0;
+
   if (loading && gameHistory.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -93,7 +121,7 @@ const Stats = () => {
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white mb-2">Total Points Earned</h2>
             <div className="text-5xl font-bold text-white mb-2">
-              0
+              {totalPointsValue.toLocaleString()}
             </div>
             <p className="text-yellow-100">
               Keep playing to increase your total score!
@@ -104,8 +132,9 @@ const Stats = () => {
         {/* Game Statistics Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {['snake', 'fallingFruit', 'breakBricks', 'carRacing'].map((gameType) => {
-            const highScore = user?.highScores?.[gameType] || 0;
             const stats = gameStats[gameType] || {};
+            const highScore = stats.highScore ?? resolvedHighScores[gameType] ?? 0;
+            const gamesPlayed = stats.totalGames ?? resolvedGamesPlayed[gameType] ?? 0;
             return (
               <div key={gameType} className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6">
                 <div className="text-center">
@@ -120,7 +149,7 @@ const Stats = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-300">Games Played:</span>
-                      <span className="text-blue-400 font-bold">{stats.totalGames || 0}</span>
+                      <span className="text-blue-400 font-bold">{gamesPlayed}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-300">Total Points:</span>

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 const Leaderboard = () => {
-  const { user } = useAuth();
+  const { user, socket } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [gameStats, setGameStats] = useState({});
   const [loading, setLoading] = useState(true);
@@ -13,45 +13,39 @@ const Leaderboard = () => {
   const [selectedGame, setSelectedGame] = useState('overall');
   const [activeTab, setActiveTab] = useState('overall');
 
-  useEffect(() => {
-    fetchLeaderboard();
-    fetchGameStats();
-  }, [currentPage, selectedGame]);
-
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       let endpoint = '/leaderboard/overall';
-      
+
       if (selectedGame !== 'overall') {
         endpoint = `/leaderboard/game/${selectedGame}/highscores`;
       }
-      
+
       const response = await api.get(`${endpoint}?page=${currentPage}&limit=50`);
-      
-      if (selectedGame === 'overall') {
-        setLeaderboard(response.data.leaderboard);
-        setTotalPages(response.data.pagination.totalPages);
-      } else {
-        setLeaderboard(response.data.leaderboard);
-        setTotalPages(response.data.pagination.totalPages);
-      }
+      setLeaderboard(response.data.leaderboard || []);
+      setTotalPages(response.data.pagination?.totalPages || 1);
     } catch (error) {
       setError('Failed to load leaderboard');
       console.error('Error fetching leaderboard:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, selectedGame]);
 
-  const fetchGameStats = async () => {
+  const fetchGameStats = useCallback(async () => {
     try {
       const response = await api.get('/leaderboard/game-stats');
-      setGameStats(response.data.gameStats);
+      setGameStats(response.data.gameStats || {});
     } catch (error) {
       console.error('Error fetching game stats:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchLeaderboard();
+    fetchGameStats();
+  }, [fetchLeaderboard, fetchGameStats]);
 
   const getGameIcon = (gameType) => {
     const icons = {
@@ -84,6 +78,33 @@ const Leaderboard = () => {
     setCurrentPage(1);
   };
 
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleLeaderboardUpdate = (payload = {}) => {
+      if (!payload.type || !payload.leaderboard) return;
+      if (payload.type === selectedGame) {
+        setLeaderboard(payload.leaderboard);
+      } else if (selectedGame === 'overall' && payload.type === 'overall') {
+        setLeaderboard(payload.leaderboard);
+      }
+    };
+
+    const handleGameStatsUpdate = (stats) => {
+      if (stats && typeof stats === 'object') {
+        setGameStats(stats);
+      }
+    };
+
+    socket.on('leaderboard:update', handleLeaderboardUpdate);
+    socket.on('gameStats:update', handleGameStatsUpdate);
+
+    return () => {
+      socket.off('leaderboard:update', handleLeaderboardUpdate);
+      socket.off('gameStats:update', handleGameStatsUpdate);
+    };
+  }, [socket, selectedGame]);
+
   if (loading && leaderboard.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -113,10 +134,15 @@ const Leaderboard = () => {
                     {getGameName(gameType)}
                   </h3>
                   <div className="text-2xl font-bold text-white mb-1">
-                    {stats.highestScore || 0}
+                    {stats?.highestScore || 0}
                   </div>
                   <div className="text-yellow-100 text-sm">
-                    {stats.topPlayer ? formatWalletAddress(stats.topPlayer.walletAddress) : 'No scores yet'}
+                    {stats?.topPlayer?.walletAddress
+                      ? formatWalletAddress(stats.topPlayer.walletAddress)
+                      : 'No scores yet'}
+                  </div>
+                  <div className="text-yellow-200 text-xs mt-1">
+                    Total Points: {stats?.points ?? 0}
                   </div>
                 </div>
               </div>
@@ -173,6 +199,9 @@ const Leaderboard = () => {
                       {activeTab === 'overall' && (
                         <th className="pb-3 text-white font-semibold">Games Played</th>
                       )}
+                      {activeTab !== 'overall' && (
+                        <th className="pb-3 text-white font-semibold">Points</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -208,11 +237,18 @@ const Leaderboard = () => {
                           </div>
                         </td>
                         <td className="py-3 text-yellow-400 font-semibold">
-                          {activeTab === 'overall' ? player.totalPoints : player.score}
+                          {activeTab === 'overall'
+                            ? player.totalPoints
+                            : (player.score ?? player.highScore ?? 0)}
                         </td>
                         {activeTab === 'overall' && (
                           <td className="py-3 text-blue-400 font-semibold">
                             {player.totalGames || 0}
+                          </td>
+                        )}
+                        {activeTab !== 'overall' && (
+                          <td className="py-3 text-green-400 font-semibold">
+                            {player.points ?? player.totalPoints ?? 0}
                           </td>
                         )}
                       </tr>

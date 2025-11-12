@@ -1,20 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Phaser from "phaser";
 import api from "../../utils/api";
 
+const POINTS_PER_FRUIT = 10;
+
 const FallingFruitGame = () => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, updateUser } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
   const phaserGameRef = useRef(null);
   const [gameState, setGameState] = useState({
     score: 0,
     highScore: 0,
+    pointsEarned: 0,
     gameOver: false,
     isPlaying: false,
   });
+
+  const updateGameStateValues = useCallback((updates) => {
+    setGameState((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!requireAuth()) {
@@ -35,10 +45,9 @@ const FallingFruitGame = () => {
   const fetchHighScore = async () => {
     try {
       const response = await api.get("/games/fallingFruit/highscore");
-      setGameState((prev) => ({
-        ...prev,
+      updateGameStateValues({
         highScore: response.data.highScore || 0,
-      }));
+      });
     } catch (error) {
       console.error("Error fetching high score:", error);
     }
@@ -46,8 +55,8 @@ const FallingFruitGame = () => {
 
   const submitScore = async (score) => {
     try {
-      const points = score * 10;
-      await api.post("/scores/submit", {
+      const points = score * POINTS_PER_FRUIT;
+      const response = await api.post("/scores/submit", {
         gameType: "fallingFruit",
         score: score,
         points: points,
@@ -56,6 +65,10 @@ const FallingFruitGame = () => {
           speed: 2 + score * 0.1,
         },
       });
+      if (response.data?.user) {
+        updateUser(response.data.user);
+      }
+      await fetchHighScore();
     } catch (error) {
       console.error("Error submitting score:", error);
     }
@@ -167,6 +180,13 @@ const FallingFruitGame = () => {
         this.finalScoreText.setVisible(false);
         this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       spawnFruit() {
@@ -189,6 +209,11 @@ const FallingFruitGame = () => {
       startGame() {
         this.gameStarted = true;
         this.instructionsText.setVisible(false);
+        updateGameStateValues({
+          isPlaying: true,
+          gameOver: false,
+          pointsEarned: 0,
+        });
       }
 
       endGame() {
@@ -197,9 +222,16 @@ const FallingFruitGame = () => {
         this.gameOverText.setVisible(true);
         this.finalScoreText.setText(`Good Fruits Caught: ${this.score}`);
         this.finalScoreText.setVisible(true);
-        this.pointsText.setText(`Points: ${this.score * 10}`);
+        this.pointsText.setText(`Points: ${this.score * POINTS_PER_FRUIT}`);
         this.pointsText.setVisible(true);
         this.restartText.setVisible(true);
+
+        updateGameStateValues({
+          score: this.score,
+          pointsEarned: this.score * POINTS_PER_FRUIT,
+          gameOver: true,
+          isPlaying: false,
+        });
 
         // Submit score
         submitScore(this.score);
@@ -231,6 +263,13 @@ const FallingFruitGame = () => {
         this.finalScoreText.setVisible(false);
         this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       update(time) {
@@ -287,6 +326,10 @@ const FallingFruitGame = () => {
               this.score += 1;
               this.scoreText.setText(`Good Fruits: ${this.score}`);
               this.speed = Math.min(8, 2 + this.score * 0.1);
+              updateGameStateValues({
+                score: this.score,
+                pointsEarned: this.score * POINTS_PER_FRUIT,
+              });
               fruit.destroy();
               this.fruits.splice(i, 1);
             } else {
@@ -378,7 +421,7 @@ const FallingFruitGame = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
                   <span className="text-green-300 font-bold text-xl">
-                    {gameState.score * 10}
+                    {gameState.pointsEarned}
                   </span>
                 </div>
               </div>

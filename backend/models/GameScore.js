@@ -13,7 +13,7 @@ const gameScoreSchema = new mongoose.Schema({
   gameType: {
     type: String,
     required: true,
-    enum: ['snake', 'fallingFruit', 'breakBricks', 'clickCounter']
+    enum: ['snake', 'fallingFruit', 'breakBricks', 'carRacing', 'clickCounter']
   },
   score: {
     type: Number,

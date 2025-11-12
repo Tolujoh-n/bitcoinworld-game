@@ -1,6 +1,11 @@
 const express = require('express');
 const User = require('../models/User');
 const GameScore = require('../models/GameScore');
+const {
+  GAME_TYPES,
+  getGlobalGameStats,
+  buildUserSummary,
+} = require('../utils/stats');
 
 const router = express.Router();
 
@@ -19,13 +24,17 @@ router.get('/overall', async (req, res) => {
     const totalUsers = await User.countDocuments();
 
     res.json({
-      leaderboard: users.map((user, index) => ({
-        rank: skip + index + 1,
-        walletAddress: user.walletAddress,
-        totalPoints: user.totalPoints,
-        highScores: user.highScores,
-        gamesPlayed: user.gamesPlayed
-      })),
+      leaderboard: users.map((user, index) => {
+        const summary = buildUserSummary(user.toObject ? user.toObject() : user);
+        return {
+          rank: skip + index + 1,
+          walletAddress: summary.walletAddress,
+          totalPoints: summary.totalPoints,
+          highScores: summary.highScores,
+          gamesPlayed: summary.gamesPlayed,
+          totalGames: summary.totalGames,
+        };
+      }),
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(totalUsers / limit),
@@ -47,8 +56,7 @@ router.get('/game/:gameType', async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
-    if (!validGameTypes.includes(gameType)) {
+    if (!GAME_TYPES.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
 
@@ -90,8 +98,7 @@ router.get('/game/:gameType/highscores', async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (page - 1) * limit;
 
-    const validGameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
-    if (!validGameTypes.includes(gameType)) {
+    if (!GAME_TYPES.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
     }
 
@@ -141,30 +148,7 @@ router.get('/game/:gameType/highscores', async (req, res) => {
 // Get game statistics (highest scores for each game)
 router.get('/game-stats', async (req, res) => {
   try {
-    const gameTypes = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
-    const gameStats = {};
-
-    for (const gameType of gameTypes) {
-      const topScore = await GameScore.findOne({ gameType })
-        .sort({ score: -1 })
-        .populate('user', 'walletAddress');
-
-      if (topScore) {
-        gameStats[gameType] = {
-          highestScore: topScore.score,
-          walletAddress: topScore.user.walletAddress,
-          points: topScore.points,
-          playedAt: topScore.playedAt
-        };
-      } else {
-        gameStats[gameType] = {
-          highestScore: 0,
-          walletAddress: null,
-          points: 0,
-          playedAt: null
-        };
-      }
-    }
+    const gameStats = await getGlobalGameStats();
 
     res.json({ gameStats });
   } catch (error) {

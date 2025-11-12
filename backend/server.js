@@ -1,18 +1,79 @@
+const http = require('http');
+const { Server } = require('socket.io');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true,
+};
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+app.set('io', io);
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    socket.user = decoded;
+
+    if (decoded.userId) {
+      socket.join(decoded.userId);
+    }
+
+    if (decoded.walletAddress) {
+      socket.join(decoded.walletAddress);
+    }
+
+    next();
+  } catch (error) {
+    console.warn('Socket auth failed:', error.message);
+    next();
+  }
+});
+
+io.on('connection', (socket) => {
+  const identifier = socket.user?.walletAddress || socket.id;
+  console.log('Socket connected:', identifier);
+
+  socket.emit('connection:ack', {
+    connected: true,
+    walletAddress: socket.user?.walletAddress || null,
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', identifier, reason);
+  });
+});
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bitcoinworld-game', {
@@ -47,6 +108,6 @@ app.get('/api/health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

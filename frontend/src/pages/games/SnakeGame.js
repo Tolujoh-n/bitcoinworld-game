@@ -1,20 +1,29 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Phaser from "phaser";
 import api from "../../utils/api";
 
+const POINTS_PER_COIN = 10;
+
 const SnakeGame = () => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, updateUser } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
   const phaserGameRef = useRef(null);
   const [gameState, setGameState] = useState({
     score: 0,
     highScore: 0,
+    pointsEarned: 0,
     gameOver: false,
     isPlaying: false,
   });
+  const updateGameStateValues = useCallback((updates) => {
+    setGameState((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!requireAuth()) {
@@ -35,10 +44,9 @@ const SnakeGame = () => {
   const fetchHighScore = async () => {
     try {
       const response = await api.get("/games/snake/highscore");
-      setGameState((prev) => ({
-        ...prev,
+      updateGameStateValues({
         highScore: response.data.highScore || 0,
-      }));
+      });
     } catch (error) {
       console.error("Error fetching high score:", error);
     }
@@ -46,8 +54,8 @@ const SnakeGame = () => {
 
   const submitScore = async (score) => {
     try {
-      const points = score * 10;
-      await api.post("/scores/submit", {
+      const points = score * POINTS_PER_COIN;
+      const response = await api.post("/scores/submit", {
         gameType: "snake",
         score: score,
         points: points,
@@ -56,6 +64,10 @@ const SnakeGame = () => {
           duration: Date.now(),
         },
       });
+      if (response.data?.user) {
+        updateUser(response.data.user);
+      }
+      await fetchHighScore();
     } catch (error) {
       console.error("Error submitting score:", error);
     }
@@ -150,6 +162,13 @@ const SnakeGame = () => {
             align: "center",
           })
           .setOrigin(0.5);
+        this.pointsText = this.add
+          .text(250, 280, "Points: 0", {
+            fontSize: "18px",
+            fill: "#FFD700",
+            align: "center",
+          })
+          .setOrigin(0.5);
         this.restartText = this.add
           .text(250, 300, "Press SPACE to Restart", {
             fontSize: "18px",
@@ -161,7 +180,15 @@ const SnakeGame = () => {
         this.gameOverOverlay.setVisible(false);
         this.gameOverText.setVisible(false);
         this.finalScoreText.setVisible(false);
+        this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       createFood() {
@@ -246,6 +273,10 @@ const SnakeGame = () => {
           this.scoreText.setText(`Score: ${this.score}`);
           this.speed = Math.max(50, 150 - this.score * 2);
           this.createFood();
+          updateGameStateValues({
+            score: this.score,
+            pointsEarned: this.score * POINTS_PER_COIN,
+          });
 
           // Add new segment to snake (circular)
           const newSegment = this.add.image(newHeadX, newHeadY, "snakeBody");
@@ -268,6 +299,11 @@ const SnakeGame = () => {
       startGame() {
         this.gameStarted = true;
         this.instructionsText.setVisible(false);
+        updateGameStateValues({
+          isPlaying: true,
+          gameOver: false,
+          pointsEarned: 0,
+        });
       }
 
       endGame() {
@@ -276,7 +312,16 @@ const SnakeGame = () => {
         this.gameOverText.setVisible(true);
         this.finalScoreText.setText(`Final Score: ${this.score}`);
         this.finalScoreText.setVisible(true);
+        this.pointsText.setText(`Points: ${this.score * POINTS_PER_COIN}`);
+        this.pointsText.setVisible(true);
         this.restartText.setVisible(true);
+
+        updateGameStateValues({
+          score: this.score,
+          pointsEarned: this.score * POINTS_PER_COIN,
+          gameOver: true,
+          isPlaying: false,
+        });
 
         // Submit score
         submitScore(this.score);
@@ -321,7 +366,15 @@ const SnakeGame = () => {
         this.gameOverOverlay.setVisible(false);
         this.gameOverText.setVisible(false);
         this.finalScoreText.setVisible(false);
+        this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       update(time) {
@@ -473,7 +526,7 @@ const SnakeGame = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
                   <span className="text-green-300 font-bold text-xl">
-                    {gameState.score * 10}
+                    {gameState.pointsEarned}
                   </span>
                 </div>
               </div>

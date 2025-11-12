@@ -1,20 +1,30 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Phaser from 'phaser';
 import api from '../../utils/api';
 
+const POINTS_PER_BRICK = 10;
+
 const BreakBricksGame = () => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, updateUser } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
   const phaserGameRef = useRef(null);
   const [gameState, setGameState] = useState({
     score: 0,
     highScore: 0,
+    pointsEarned: 0,
     gameOver: false,
     isPlaying: false
   });
+
+  const updateGameStateValues = useCallback((updates) => {
+    setGameState((prev) => ({
+      ...prev,
+      ...updates
+    }));
+  }, []);
 
   useEffect(() => {
     if (!requireAuth()) {
@@ -35,7 +45,7 @@ const BreakBricksGame = () => {
   const fetchHighScore = async () => {
     try {
       const response = await api.get('/games/breakBricks/highscore');
-      setGameState(prev => ({ ...prev, highScore: response.data.highScore || 0 }));
+      updateGameStateValues({ highScore: response.data.highScore || 0 });
     } catch (error) {
       console.error('Error fetching high score:', error);
     }
@@ -43,8 +53,8 @@ const BreakBricksGame = () => {
 
   const submitScore = async (score) => {
     try {
-      const points = score * 10;
-      await api.post('/scores/submit', {
+      const points = score * POINTS_PER_BRICK;
+      const response = await api.post('/scores/submit', {
         gameType: 'breakBricks',
         score: score,
         points: points,
@@ -54,6 +64,10 @@ const BreakBricksGame = () => {
           gameCompleted: score === 50
         }
       });
+      if (response.data?.user) {
+        updateUser(response.data.user);
+      }
+      await fetchHighScore();
     } catch (error) {
       console.error('Error submitting score:', error);
     }
@@ -163,6 +177,13 @@ const BreakBricksGame = () => {
         this.wonScoreText.setVisible(false);
         this.wonPointsText.setVisible(false);
         this.wonRestartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false
+        });
       }
 
       createBricks() {
@@ -193,6 +214,11 @@ const BreakBricksGame = () => {
       startGame() {
         this.gameStarted = true;
         this.instructionsText.setVisible(false);
+        updateGameStateValues({
+          isPlaying: true,
+          gameOver: false,
+          pointsEarned: 0
+        });
         
         // Set initial ball velocity
         const ballVelocity = this.ball.getData('velocity');
@@ -206,9 +232,16 @@ const BreakBricksGame = () => {
         this.gameOverText.setVisible(true);
         this.finalScoreText.setText(`Bricks Broken: ${this.score}`);
         this.finalScoreText.setVisible(true);
-        this.pointsText.setText(`Points: ${this.score * 10}`);
+        this.pointsText.setText(`Points: ${this.score * POINTS_PER_BRICK}`);
         this.pointsText.setVisible(true);
         this.restartText.setVisible(true);
+
+        updateGameStateValues({
+          score: this.score,
+          pointsEarned: this.score * POINTS_PER_BRICK,
+          gameOver: true,
+          isPlaying: false
+        });
 
         // Submit score
         submitScore(this.score);
@@ -219,9 +252,16 @@ const BreakBricksGame = () => {
         this.gameOverOverlay.setVisible(true);
         this.gameWonText.setVisible(true);
         this.wonScoreText.setVisible(true);
-        this.wonPointsText.setText(`Points: ${this.score * 10}`);
+        this.wonPointsText.setText(`Points: ${this.score * POINTS_PER_BRICK}`);
         this.wonPointsText.setVisible(true);
         this.wonRestartText.setVisible(true);
+
+        updateGameStateValues({
+          score: this.score,
+          pointsEarned: this.score * POINTS_PER_BRICK,
+          gameOver: true,
+          isPlaying: false
+        });
 
         // Submit score
         submitScore(this.score);
@@ -261,6 +301,13 @@ const BreakBricksGame = () => {
         this.wonScoreText.setVisible(false);
         this.wonPointsText.setVisible(false);
         this.wonRestartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          pointsEarned: 0,
+          gameOver: false,
+          isPlaying: false
+        });
       }
 
       update(time) {
@@ -329,6 +376,10 @@ const BreakBricksGame = () => {
             brick.setVisible(false);
             this.score += 1;
             this.scoreText.setText(`Bricks Broken: ${this.score}`);
+            updateGameStateValues({
+              score: this.score,
+              pointsEarned: this.score * POINTS_PER_BRICK
+            });
             ballVelocity.y = -ballVelocity.y;
 
             // Check if all bricks are destroyed
@@ -406,7 +457,7 @@ const BreakBricksGame = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
-                  <span className="text-green-300 font-bold text-xl">{gameState.score * 10}</span>
+                  <span className="text-green-300 font-bold text-xl">{gameState.pointsEarned}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Remaining:</span>

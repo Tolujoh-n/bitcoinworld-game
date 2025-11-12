@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Phaser from "phaser";
 import api from "../../utils/api";
 
 const CarRacingGame = () => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, updateUser } = useAuth();
   const navigate = useNavigate();
   const gameRef = useRef(null);
   const phaserGameRef = useRef(null);
@@ -15,6 +15,14 @@ const CarRacingGame = () => {
     gameOver: false,
     isPlaying: false,
   });
+  const POINTS_PER_CAR = 10;
+
+  const updateGameStateValues = useCallback((updates) => {
+    setGameState((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!requireAuth()) {
@@ -35,10 +43,9 @@ const CarRacingGame = () => {
   const fetchHighScore = async () => {
     try {
       const response = await api.get("/games/carRacing/highscore");
-      setGameState((prev) => ({
-        ...prev,
+      updateGameStateValues({
         highScore: response.data.highScore || 0,
-      }));
+      });
     } catch (error) {
       console.error("Error fetching high score:", error);
     }
@@ -46,8 +53,8 @@ const CarRacingGame = () => {
 
   const submitScore = async (score) => {
     try {
-      const points = score * 5;
-      await api.post("/scores/submit", {
+      const points = score * POINTS_PER_CAR;
+      const response = await api.post("/scores/submit", {
         gameType: "carRacing",
         score: score,
         points: points,
@@ -56,6 +63,10 @@ const CarRacingGame = () => {
           speed: 2 + score * 0.1,
         },
       });
+      if (response.data?.user) {
+        updateUser(response.data.user);
+      }
+      await fetchHighScore();
     } catch (error) {
       console.error("Error submitting score:", error);
     }
@@ -169,6 +180,12 @@ const CarRacingGame = () => {
         this.finalScoreText.setVisible(false);
         this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       spawnEnemyCar() {
@@ -186,6 +203,10 @@ const CarRacingGame = () => {
       startGame() {
         this.gameStarted = true;
         this.instructionsText.setVisible(false);
+        updateGameStateValues({
+          isPlaying: true,
+          gameOver: false,
+        });
       }
 
       endGame() {
@@ -194,9 +215,15 @@ const CarRacingGame = () => {
         this.gameOverText.setVisible(true);
         this.finalScoreText.setText(`Cars Passed: ${this.score}`);
         this.finalScoreText.setVisible(true);
-        this.pointsText.setText(`Points: ${this.score * 5}`);
+        this.pointsText.setText(`Points: ${this.score * POINTS_PER_CAR}`);
         this.pointsText.setVisible(true);
         this.restartText.setVisible(true);
+
+        updateGameStateValues({
+          score: this.score,
+          gameOver: true,
+          isPlaying: false,
+        });
 
         // Submit score
         submitScore(this.score);
@@ -233,6 +260,12 @@ const CarRacingGame = () => {
         this.finalScoreText.setVisible(false);
         this.pointsText.setVisible(false);
         this.restartText.setVisible(false);
+
+        updateGameStateValues({
+          score: 0,
+          gameOver: false,
+          isPlaying: false,
+        });
       }
 
       update(time) {
@@ -300,6 +333,7 @@ const CarRacingGame = () => {
             this.score += 1;
             this.scoreText.setText(`Cars Passed: ${this.score}`);
             this.speed = Math.min(8, 2 + this.score * 0.1);
+            updateGameStateValues({ score: this.score });
             car.destroy();
             this.enemyCars.splice(i, 1);
           }
@@ -380,7 +414,7 @@ const CarRacingGame = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-100">Points Earned:</span>
                   <span className="text-green-300 font-bold text-xl">
-                    {gameState.score * 5}
+                    {gameState.score * POINTS_PER_CAR}
                   </span>
                 </div>
               </div>
@@ -443,7 +477,7 @@ const CarRacingGame = () => {
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
-                  <span>Each car you avoid = 5 points</span>
+                  <span>Each car you avoid = 10 points</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-yellow-400 mr-2 font-bold">•</span>
