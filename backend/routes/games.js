@@ -14,6 +14,7 @@ const games = [
     pointsPerItem: 10,
     icon: '🐍',
     color: 'bg-green-500',
+    status: 'active', // active or comingSoon
     rules: [
       'Use arrow keys or WASD to control the snake',
       'Eat coins to grow longer and earn points',
@@ -28,6 +29,7 @@ const games = [
     pointsPerItem: 10,
     icon: '🍎',
     color: 'bg-red-500',
+    status: 'active', // active or comingSoon
     rules: [
       'Use arrow keys or WASD to move the baby',
       'Catch green fruits (good) to grow bigger',
@@ -43,6 +45,7 @@ const games = [
     pointsPerItem: 10,
     icon: '🧱',
     color: 'bg-blue-500',
+    status: 'comingSoon', // active or comingSoon
     rules: [
       'Use left/right arrow keys or A/D to move the paddle',
       'Bounce the ball to break bricks',
@@ -58,6 +61,7 @@ const games = [
     pointsPerItem: 10,
     icon: '🏎️',
     color: 'bg-purple-500',
+    status: 'comingSoon', // active or comingSoon
     rules: [
       'Use arrow keys or WASD to control your car',
       'Avoid crashing into oncoming cars',

@@ -15,6 +15,14 @@ const router = express.Router();
 
 const ORACLE_POINT_RATE = Number(process.env.ORACLE_POINT_RATE || 100);
 
+// Game status configuration
+const GAME_STATUS = {
+  snake: 'active',
+  fallingFruit: 'active',
+  breakBricks: 'comingSoon',
+  carRacing: 'comingSoon',
+};
+
 // Submit a game score
 router.post('/submit', auth, async (req, res) => {
   try {
@@ -26,6 +34,11 @@ router.post('/submit', auth, async (req, res) => {
 
     if (!GAME_TYPES.includes(gameType)) {
       return res.status(400).json({ message: 'Invalid game type' });
+    }
+
+    // Check if game is coming soon
+    if (GAME_STATUS[gameType] === 'comingSoon') {
+      return res.status(403).json({ message: 'This game is coming soon and is not yet available for play' });
     }
 
     const gameScore = new GameScore({

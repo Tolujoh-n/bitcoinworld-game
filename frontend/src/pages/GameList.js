@@ -34,7 +34,13 @@ const GameList = () => {
     fetchGames();
   }, [fetchGames]);
 
-  const handleGameClick = async (e, routeId) => {
+  const handleGameClick = async (e, routeId, gameStatus) => {
+    // Prevent navigation for coming soon games
+    if (gameStatus === 'comingSoon') {
+      e.preventDefault();
+      return;
+    }
+
     if (!user) {
       e.preventDefault();
       const result = await requireAuth();
@@ -78,56 +84,106 @@ const GameList = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {games.map((game, index) => {
             const routeId = routeMap[game.id] || game.id;
+            const isComingSoon = game.status === 'comingSoon';
+            const gameStatus = game.status || 'active';
+            
             return (
             <div
               key={game.id}
-              className={`transform transition-all duration-300 hover:scale-105 ${
-                index % 2 === 0 ? 'animate-bounce-gold' : 'animate-pulse-gold'
+              className={`transform transition-all duration-300 ${
+                isComingSoon 
+                  ? 'opacity-75 cursor-not-allowed' 
+                  : 'hover:scale-105 ' + (index % 2 === 0 ? 'animate-bounce-gold' : 'animate-pulse-gold')
               }`}
             >
-              <Link
-                to={`/games/${routeId}`}
-                onClick={(e) => handleGameClick(e, routeId)}
-                className="block"
-              >
-                <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-8 h-full border-2 border-yellow-400 hover:border-yellow-300 transition-all duration-300 shadow-xl hover:shadow-2xl">
+              {isComingSoon ? (
+                <div className="bg-gradient-to-br from-gray-700 to-gray-800 bg-opacity-90 backdrop-blur-sm rounded-lg p-8 h-full border-2 border-gray-500 transition-all duration-300 shadow-xl relative">
+                  {/* Coming Soon Badge */}
+                  <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg z-10">
+                    🚀 Coming Soon
+                  </div>
+                  
                   <div className="text-center">
-                    <div className={`text-6xl mb-4 ${game.color} rounded-full w-20 h-20 mx-auto flex items-center justify-center`}>
+                    <div className={`text-6xl mb-4 ${game.color} rounded-full w-20 h-20 mx-auto flex items-center justify-center opacity-60`}>
                       <span className="text-4xl">{game.icon}</span>
                     </div>
                     
-                    <h3 className="text-2xl font-bold text-yellow-200 mb-4">
+                    <h3 className="text-2xl font-bold text-gray-300 mb-4">
                       {game.name}
                     </h3>
                     
-                    <p className="text-yellow-100 mb-6">
+                    <p className="text-gray-400 mb-6">
                       {game.description}
                     </p>
                     
-                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 bg-opacity-30 rounded-lg p-4 mb-6 border-2 border-yellow-400">
-                      <div className="text-yellow-200 font-bold text-lg">
+                    <div className="bg-gradient-to-r from-gray-600 to-gray-700 bg-opacity-30 rounded-lg p-4 mb-6 border-2 border-gray-500">
+                      <div className="text-gray-400 font-bold text-lg">
                         💰 {game.pointsPerItem} points per item
                       </div>
                     </div>
                     
                     <div className="text-left mb-6">
-                      <h4 className="text-yellow-200 font-semibold mb-2">🎮 How to Play:</h4>
-                      <ul className="text-sm text-yellow-100 space-y-1">
+                      <h4 className="text-gray-300 font-semibold mb-2">🎮 How to Play:</h4>
+                      <ul className="text-sm text-gray-400 space-y-1">
                         {game.rules.map((rule, ruleIndex) => (
                           <li key={ruleIndex} className="flex items-start">
-                            <span className="text-yellow-400 mr-2 font-bold">•</span>
+                            <span className="text-gray-500 mr-2 font-bold">•</span>
                             {rule}
                           </li>
                         ))}
                       </ul>
                     </div>
                     
-                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold py-4 px-8 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 shadow-lg border-2 border-yellow-300 hover:border-yellow-200">
-                      🎮 Play {game.name}
+                    <div className="bg-gradient-to-r from-gray-600 to-gray-700 text-gray-400 font-bold py-4 px-8 rounded-lg transition-all duration-300 shadow-lg border-2 border-gray-500 cursor-not-allowed">
+                      🔒 Coming Soon
                     </div>
                   </div>
                 </div>
-              </Link>
+              ) : (
+                <Link
+                  to={`/games/${routeId}`}
+                  onClick={(e) => handleGameClick(e, routeId, gameStatus)}
+                  className="block"
+                >
+                  <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-8 h-full border-2 border-yellow-400 hover:border-yellow-300 transition-all duration-300 shadow-xl hover:shadow-2xl">
+                    <div className="text-center">
+                      <div className={`text-6xl mb-4 ${game.color} rounded-full w-20 h-20 mx-auto flex items-center justify-center`}>
+                        <span className="text-4xl">{game.icon}</span>
+                      </div>
+                      
+                      <h3 className="text-2xl font-bold text-yellow-200 mb-4">
+                        {game.name}
+                      </h3>
+                      
+                      <p className="text-yellow-100 mb-6">
+                        {game.description}
+                      </p>
+                      
+                      <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 bg-opacity-30 rounded-lg p-4 mb-6 border-2 border-yellow-400">
+                        <div className="text-yellow-200 font-bold text-lg">
+                          💰 {game.pointsPerItem} points per item
+                        </div>
+                      </div>
+                      
+                      <div className="text-left mb-6">
+                        <h4 className="text-yellow-200 font-semibold mb-2">🎮 How to Play:</h4>
+                        <ul className="text-sm text-yellow-100 space-y-1">
+                          {game.rules.map((rule, ruleIndex) => (
+                            <li key={ruleIndex} className="flex items-start">
+                              <span className="text-yellow-400 mr-2 font-bold">•</span>
+                              {rule}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold py-4 px-8 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 shadow-lg border-2 border-yellow-300 hover:border-yellow-200">
+                        🎮 Play {game.name}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              )}
             </div>
           );
           })}
