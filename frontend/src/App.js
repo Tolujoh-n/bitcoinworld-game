@@ -10,7 +10,6 @@ import BreakBricksGame from './pages/games/BreakBricksGame';
 import CarRacingGame from './pages/games/CarRacingGame';
 import Stats from './pages/Stats';
 import Leaderboard from './pages/Leaderboard';
-import LoginModal from './components/LoginModal';
 import './App.css';
 
 function App() {
@@ -29,7 +28,6 @@ function App() {
             <Route path="/stats" element={<Stats />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
           </Routes>
-          <LoginModal />
         </div>
       </Router>
     </AuthProvider>

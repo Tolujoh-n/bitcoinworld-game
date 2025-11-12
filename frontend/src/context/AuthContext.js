@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import api, { SOCKET_BASE_URL } from '../utils/api';
+import { authenticate, getWalletAddress, logoutWallet } from '../utils/stacksConnect';
 
 const GAME_TYPES = ['snake', 'fallingFruit', 'breakBricks', 'carRacing'];
 const ORACLE_POINT_RATE = 100;
@@ -67,7 +68,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [socket, setSocket] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const persistUser = useCallback((value) => {
     if (value) {
@@ -129,6 +129,26 @@ export const AuthProvider = ({ children }) => {
     [refreshUser, persistUser]
   );
 
+  const login = useCallback(async (walletAddress) => {
+    try {
+      const response = await api.post('/auth/login', { walletAddress });
+      const { token, user: userData } = response.data;
+      
+      localStorage.setItem('token', token);
+      const normalizedUser = normalizeUser(userData);
+      persistUser(normalizedUser);
+      setUser(normalizedUser);
+      
+      return { success: true, user: normalizedUser };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Login failed' 
+      };
+    }
+  }, [persistUser]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const cachedUser = localStorage.getItem('user');
@@ -145,9 +165,15 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       verifyToken(token);
     } else {
-      setLoading(false);
+      // Check if wallet is already connected
+      const walletAddress = getWalletAddress();
+      if (walletAddress) {
+        login(walletAddress).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
     }
-  }, [verifyToken]);
+  }, [verifyToken, login]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -193,28 +219,24 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user?.id, user?._id, user?.walletAddress, updateUser, refreshUser]);
 
-  const login = async (walletAddress) => {
+  const connectWallet = useCallback(async () => {
     try {
-      const response = await api.post('/auth/login', { walletAddress });
-      const { token, user: userData } = response.data;
-      
-      localStorage.setItem('token', token);
-      const normalizedUser = normalizeUser(userData);
-      persistUser(normalizedUser);
-      setUser(normalizedUser);
-      setShowLoginModal(false);
-      
-      return { success: true, user: normalizedUser };
+      const walletAddress = await authenticate();
+      if (!walletAddress) {
+        return { success: false, error: 'Wallet connection cancelled or failed' };
+      }
+      return await login(walletAddress);
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Wallet connection error:', error);
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed' 
+        error: error.message || 'Failed to connect wallet' 
       };
     }
-  };
+  }, [login]);
 
   const logout = () => {
+    logoutWallet();
     localStorage.removeItem('token');
     persistUser(null);
     setUser(null);
@@ -224,23 +246,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const requireAuth = () => {
+  const requireAuth = useCallback(async () => {
     if (!user) {
-      setShowLoginModal(true);
-      return false;
+      const result = await connectWallet();
+      return result.success;
     }
     return true;
-  };
+  }, [user, connectWallet]);
 
   const value = {
     user,
     loading,
     socket,
-    showLoginModal,
-    setShowLoginModal,
     login,
     logout,
     requireAuth,
+    connectWallet,
     updateUser,
     refreshUser
   };

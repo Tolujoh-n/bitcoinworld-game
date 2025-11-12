@@ -48,10 +48,15 @@ const Stats = () => {
   }, [updateUser]);
 
   useEffect(() => {
-    if (!requireAuth()) return;
+    const checkAuth = async () => {
+      const isAuthenticated = await requireAuth();
+      if (!isAuthenticated) return;
 
-    fetchGameHistory(currentPage);
-    fetchGameStats();
+      fetchGameHistory(currentPage);
+      fetchGameStats();
+    };
+
+    checkAuth();
   }, [requireAuth, currentPage, fetchGameHistory, fetchGameStats]);
 
   useEffect(() => {

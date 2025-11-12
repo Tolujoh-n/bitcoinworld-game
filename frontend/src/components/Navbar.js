@@ -1,16 +1,36 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/bw-logo.png';
+import { getWalletAddress } from "../utils/stacksConnect";
 
 const Navbar = () => {
-  const { user, logout, setShowLoginModal } = useAuth();
+  const { user, logout, connectWallet } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const totalPoints = user?.totalPoints ?? 0;
   const mintedPoints = user?.mintedPoints ?? 0;
   const availablePoints = user?.availablePoints ?? Math.max(0, totalPoints - mintedPoints);
+
+  useEffect(() => {
+    // Check if wallet is connected but user is not logged in
+    const walletAddress = getWalletAddress();
+    if (walletAddress && (!user || user.walletAddress?.toLowerCase() !== walletAddress.toLowerCase())) {
+      // Auto-login if wallet is connected
+      connectWallet();
+    }
+  }, [user, connectWallet]);
+
+  const handleConnectWallet = async () => {
+    await connectWallet();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   const isActive = (path) => location.pathname === path;
 
@@ -73,7 +93,7 @@ const Navbar = () => {
           </div>
           <button
             onClick={() => {
-              logout();
+              handleLogout();
               closeMenu();
             }}
             className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
@@ -84,7 +104,7 @@ const Navbar = () => {
       ) : (
         <button
           onClick={() => {
-            setShowLoginModal(true);
+            handleConnectWallet();
             closeMenu();
           }}
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"

@@ -75,13 +75,18 @@ const SnakeGame = () => {
   }, [computeCanvasDimensions]);
 
   useEffect(() => {
-    if (!requireAuth()) {
-      navigate("/games");
-      return;
-    }
+    const checkAuth = async () => {
+      const isAuthenticated = await requireAuth();
+      if (!isAuthenticated) {
+        navigate("/games");
+        return;
+      }
 
-    fetchHighScore();
-    initializeGame();
+      fetchHighScore();
+      initializeGame();
+    };
+
+    checkAuth();
 
     return () => {
       if (phaserGameRef.current) {

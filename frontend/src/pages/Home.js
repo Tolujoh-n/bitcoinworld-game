@@ -1,9 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Home = () => {
-  const { user } = useAuth();
+  const { user, connectWallet } = useAuth();
+  const navigate = useNavigate();
   const totalPoints = user?.totalPoints ?? 0;
   const mintedPoints = user?.mintedPoints ?? 0;
   const availablePoints = user?.availablePoints ?? Math.max(0, totalPoints - mintedPoints);
@@ -48,12 +49,26 @@ const Home = () => {
             </div>
           )}
           
-          <Link
-            to="/games"
-            className="inline-block bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors gold-pulse"
-          >
-            Start Playing Now
-          </Link>
+          {user ? (
+            <Link
+              to="/games"
+              className="inline-block bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors gold-pulse"
+            >
+              Start Playing Now
+            </Link>
+          ) : (
+            <button
+              onClick={async () => {
+                const result = await connectWallet();
+                if (result.success) {
+                  navigate('/games');
+                }
+              }}
+              className="inline-block bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors gold-pulse"
+            >
+              Connect Wallet to Play
+            </button>
+          )}
         </div>
 
         {/* Features Section */}

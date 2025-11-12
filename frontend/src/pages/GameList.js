@@ -34,11 +34,16 @@ const GameList = () => {
     fetchGames();
   }, [fetchGames]);
 
-  const handleGameClick = (gameId) => {
-    if (!requireAuth()) {
-      return;
+  const handleGameClick = async (e, routeId) => {
+    if (!user) {
+      e.preventDefault();
+      const result = await requireAuth();
+      if (result) {
+        // Navigate after successful auth
+        window.location.href = `/games/${routeId}`;
+      }
     }
-    // Navigation will be handled by the Link component
+    // If user is already logged in, let Link handle navigation
   };
 
   if (loading) {
@@ -82,7 +87,7 @@ const GameList = () => {
             >
               <Link
                 to={`/games/${routeId}`}
-                onClick={() => handleGameClick(game.id)}
+                onClick={(e) => handleGameClick(e, routeId)}
                 className="block"
               >
                 <div className="bg-gradient-to-br from-yellow-800 to-yellow-900 bg-opacity-90 backdrop-blur-sm rounded-lg p-8 h-full border-2 border-yellow-400 hover:border-yellow-300 transition-all duration-300 shadow-xl hover:shadow-2xl">
